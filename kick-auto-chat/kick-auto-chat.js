@@ -53,6 +53,7 @@
   const enviar = () => {
     const input = acharInput();
     if (!input) { log("Não achei o campo do chat. Você está logado e com o chat aberto?"); return false; }
+    if ((input.textContent || "").trim()) { log("Você está digitando, tento de novo em 30s"); setTimeout(enviar, 30000); return false; }
     const msg = escolher();
     input.focus();
     document.execCommand("selectAll", false, null);
