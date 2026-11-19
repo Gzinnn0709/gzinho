@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kick auto-chat Gabepeixe
 // @namespace    gzinho
-// @version      1.0
+// @version      1.1
 // @description  Manda mensagem de 5+ palavras a cada 15-17 min na live do Gabepeixe
 // @match        https://kick.com/gabepeixe*
 // @grant        none
@@ -41,8 +41,9 @@
     document.querySelector('div[contenteditable="true"]');
   const acharBotao = () =>
     document.querySelector('#send-message-button') ||
+    document.querySelector('button[aria-label*="send" i], button[aria-label*="enviar" i]') ||
     document.querySelector('[data-testid="send-message-button"]') ||
-    [...document.querySelectorAll("button")].find(b => /^(chat|enviar|send)$/i.test(b.textContent.trim()));
+    [...document.querySelectorAll("button")].find(b => /^(chat|enviar|send|bate-papo)$/i.test(b.textContent.trim()) && b.offsetParent);
   const escolher = () => {
     let m;
     do { m = MENSAGENS[Math.floor(Math.random() * MENSAGENS.length)]; }
@@ -57,13 +58,23 @@
     input.focus();
     document.execCommand("selectAll", false, null);
     document.execCommand("insertText", false, msg);
-    setTimeout(() => {
-      const btn = acharBotao();
-      if (btn && !btn.disabled) btn.click();
-      else input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true }));
-      enviadas++;
-      log(`Enviado: "${msg}" (total: ${enviadas})`);
-    }, 400);
+    const vazio = () => !(acharInput()?.textContent || "").trim();
+    const apertarEnter = el => ["keydown", "keypress", "keyup"].forEach(t =>
+      el.dispatchEvent(new KeyboardEvent(t, { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true, cancelable: true })));
+    const tentativas = [
+      () => apertarEnter(input),
+      () => { const b = acharBotao(); if (b) b.click(); },
+      () => { const b = acharBotao(); if (b) ["pointerdown", "mousedown", "pointerup", "mouseup", "click"].forEach(t =>
+              b.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }))); },
+      () => { input.closest("form")?.requestSubmit?.(); }
+    ];
+    const tentar = i => {
+      if (vazio()) { enviadas++; log(`Enviado: "${msg}" (total: ${enviadas})`); return; }
+      if (i >= tentativas.length) { log(`Digitei mas não consegui enviar: "${msg}"`); return; }
+      try { tentativas[i](); } catch (e) {}
+      setTimeout(() => tentar(i + 1), 700);
+    };
+    setTimeout(() => tentar(0), 400);
     return true;
   };
   const agendar = () => {
