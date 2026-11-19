@@ -1,11 +1,13 @@
 // ==UserScript==
 // @name         Kick auto-chat Gabepeixe
 // @namespace    gzinho
-// @version      1.1
-// @description  Manda mensagem de 5+ palavras a cada 15-17 min na live do Gabepeixe
+// @version      1.2
+// @description  Manda mensagem de 5+ palavras a cada 8-10 min na live do Gabepeixe
 // @match        https://kick.com/gabepeixe*
 // @grant        none
 // @run-at       document-idle
+// @updateURL    https://github.com/Gzinnn0709/gzinho/raw/claude/gabepeixe-pontos-automatico-d2ra5w/kick-auto-chat/kick-auto-chat.user.js
+// @downloadURL  https://github.com/Gzinnn0709/gzinho/raw/claude/gabepeixe-pontos-automatico-d2ra5w/kick-auto-chat/kick-auto-chat.user.js
 // ==/UserScript==
 
 (function iniciar() {
@@ -13,7 +15,7 @@
   if (!pronto) return setTimeout(iniciar, 3000);
 
   if (window.__autoChat) { window.__autoChat.stop(); }
-  const MINUTOS_BASE = 15;     
+  const MINUTOS_BASE = 8;      
   const VARIACAO_MIN = 2;      
   const MENSAGENS = [
     "boa gabe essa foi demais",

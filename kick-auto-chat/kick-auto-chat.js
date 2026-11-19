@@ -1,11 +1,11 @@
-// Kick auto-chat: manda uma mensagem a cada ~15 min (com variação aleatória).
+// Kick auto-chat: manda uma mensagem a cada ~8 min (com variação aleatória).
 // Uso: abra a live no kick.com (PC), aperte F12 > aba Console, cole tudo e Enter.
 // Para parar: clique em "Parar" no painel ou recarregue a página.
 (() => {
   if (window.__autoChat) { window.__autoChat.stop(); }
 
   // ====== CONFIGURAÇÃO ======
-  const MINUTOS_BASE = 15;      // intervalo mínimo
+  const MINUTOS_BASE = 8;       // intervalo mínimo
   const VARIACAO_MIN = 2;       // + até 2 min aleatórios (parece menos robô)
   // Cada mensagem tem 5 palavras ou mais (regra dos pontos)
   const MENSAGENS = [
