@@ -1,0 +1,92 @@
+// ==UserScript==
+// @name         Kick auto-chat Gabepeixe
+// @namespace    gzinho
+// @version      1.0
+// @description  Manda mensagem de 5+ palavras a cada 15-17 min na live do Gabepeixe
+// @match        https://kick.com/gabepeixe*
+// @grant        none
+// @run-at       document-idle
+// ==/UserScript==
+
+(function iniciar() {
+  const pronto = document.querySelector('[data-testid="chat-input"], div[contenteditable="true"]');
+  if (!pronto) return setTimeout(iniciar, 3000);
+
+  if (window.__autoChat) { window.__autoChat.stop(); }
+  const MINUTOS_BASE = 15;     
+  const VARIACAO_MIN = 2;      
+  const MENSAGENS = [
+    "boa gabe essa foi demais",
+    "salve chat tamo junto aqui hoje",
+    "que jogada brabo demais mano kkkk",
+    "tô assistindo aqui desde o começo",
+    "essa live tá muito boa hoje",
+    "kkkkk não acredito que isso aconteceu",
+    "gabe você é muito monstro mesmo",
+    "bora gabe vamos pra cima deles",
+    "melhor live da kick com certeza",
+    "aí sim agora a coisa ficou boa",
+    "slk mano que momento foi esse",
+    "chat tá muito animado hoje hein",
+    "quero ver essa próxima partida aí",
+    "essa foi pro clipe com certeza",
+    "gabe manda um salve pra galera"
+  ];
+  let ultima = "";
+  let timer = null, tick = null, proximo = 0, enviadas = 0;
+  const acharInput = () =>
+    document.querySelector('[data-testid="chat-input"]') ||
+    document.querySelector('#chat-input-wrapper [contenteditable="true"]') ||
+    document.querySelector('div[contenteditable="true"][data-lexical-editor="true"]') ||
+    document.querySelector('div[contenteditable="true"]');
+  const acharBotao = () =>
+    document.querySelector('#send-message-button') ||
+    document.querySelector('[data-testid="send-message-button"]') ||
+    [...document.querySelectorAll("button")].find(b => /^(chat|enviar|send)$/i.test(b.textContent.trim()));
+  const escolher = () => {
+    let m;
+    do { m = MENSAGENS[Math.floor(Math.random() * MENSAGENS.length)]; }
+    while (m === ultima && MENSAGENS.length > 1);
+    ultima = m;
+    return m;
+  };
+  const enviar = () => {
+    const input = acharInput();
+    if (!input) { log("Não achei o campo do chat. Você está logado e com o chat aberto?"); return false; }
+    const msg = escolher();
+    input.focus();
+    document.execCommand("selectAll", false, null);
+    document.execCommand("insertText", false, msg);
+    setTimeout(() => {
+      const btn = acharBotao();
+      if (btn && !btn.disabled) btn.click();
+      else input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true }));
+      enviadas++;
+      log(`Enviado: "${msg}" (total: ${enviadas})`);
+    }, 400);
+    return true;
+  };
+  const agendar = () => {
+    const ms = (MINUTOS_BASE + Math.random() * VARIACAO_MIN) * 60 * 1000;
+    proximo = Date.now() + ms;
+    timer = setTimeout(() => { enviar(); agendar(); }, ms);
+  };
+  const painel = document.createElement("div");
+  painel.style.cssText = "position:fixed;bottom:16px;left:16px;z-index:999999;background:#111;color:#53fc18;" +
+    "font:13px monospace;padding:10px 12px;border:1px solid #53fc18;border-radius:8px;max-width:280px";
+  painel.innerHTML = '<b>Auto-chat ativo</b><div id="ac-tempo"></div><div id="ac-log" style="color:#aaa;margin:4px 0"></div>' +
+    '<button id="ac-agora" style="margin-right:6px">Enviar agora</button><button id="ac-parar">Parar</button>';
+  document.body.appendChild(painel);
+  const log = t => { painel.querySelector("#ac-log").textContent = t; console.log("[auto-chat]", t); };
+  tick = setInterval(() => {
+    const s = Math.max(0, Math.round((proximo - Date.now()) / 1000));
+    painel.querySelector("#ac-tempo").textContent = `Próxima em ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  }, 1000);
+  const stop = () => { clearTimeout(timer); clearInterval(tick); painel.remove(); delete window.__autoChat; console.log("[auto-chat] parado"); };
+  painel.querySelector("#ac-parar").onclick = stop;
+  painel.querySelector("#ac-agora").onclick = () => enviar();
+  window.__autoChat = { stop, enviar };
+  enviar();  
+  agendar();
+
+})();
