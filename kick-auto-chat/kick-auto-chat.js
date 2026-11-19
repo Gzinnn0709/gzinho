@@ -71,7 +71,7 @@
     ];
     const tentar = i => {
       if (vazio()) { enviadas++; log(`Enviado: "${msg}" (total: ${enviadas})`); return; }
-      if (i >= tentativas.length) { log(`Digitei mas não consegui enviar: "${msg}"`); return; }
+      if (i >= tentativas.length) { log(`Não consegui enviar (modo lento?), tento de novo em 60s`); setTimeout(enviar, 60000); return; }
       try { tentativas[i](); } catch (e) {}
       setTimeout(() => tentar(i + 1), 700);
     };

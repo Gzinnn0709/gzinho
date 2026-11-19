@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kick auto-chat Gabepeixe
 // @namespace    gzinho
-// @version      1.3
+// @version      1.4
 // @description  Manda mensagem de 5+ palavras a cada 8-10 min na live do Gabepeixe
 // @match        https://kick.com/gabepeixe*
 // @grant        none
@@ -73,7 +73,7 @@
     ];
     const tentar = i => {
       if (vazio()) { enviadas++; log(`Enviado: "${msg}" (total: ${enviadas})`); return; }
-      if (i >= tentativas.length) { log(`Digitei mas não consegui enviar: "${msg}"`); return; }
+      if (i >= tentativas.length) { log(`Não consegui enviar (modo lento?), tento de novo em 60s`); setTimeout(enviar, 60000); return; }
       try { tentativas[i](); } catch (e) {}
       setTimeout(() => tentar(i + 1), 700);
     };
