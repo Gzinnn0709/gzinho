@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kick auto-chat Gabepeixe
 // @namespace    gzinho
-// @version      2.0
+// @version      2.1
 // @description  Manda mensagem de 5+ palavras a cada 8-10 min nas lives do Gabepeixe e Brabox
 // @match        https://kick.com/gabepeixe*
 // @match        https://kick.com/brabox*
@@ -186,6 +186,8 @@
   if (!window.Notification || Notification.permission === "granted") btnAvisos.remove();
   else btnAvisos.onclick = () => Notification.requestPermission().then(p => { if (p === "granted") { btnAvisos.remove(); new Notification("Avisos ligados: vou te avisar quando a live abrir"); } });
   window.__autoChat = { stop, enviar };
-  ciclo();  
+  log("Carregando, conferindo se a live está no ar...");
+  proximo = Date.now() + 8000;
+  timer = setTimeout(ciclo, 8000);
 
 })();

@@ -198,5 +198,8 @@
   else btnAvisos.onclick = () => Notification.requestPermission().then(p => { if (p === "granted") { btnAvisos.remove(); new Notification("Avisos ligados: vou te avisar quando a live abrir"); } });
 
   window.__autoChat = { stop, enviar };
-  ciclo();   // se a live estiver no ar, já manda uma
+  // espera 8s para a página terminar de montar (faixa OFFLINE etc.) antes da 1ª checagem
+  log("Carregando, conferindo se a live está no ar...");
+  proximo = Date.now() + 8000;
+  timer = setTimeout(ciclo, 8000);
 })();
