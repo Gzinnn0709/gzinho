@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kick auto-chat Gabepeixe
 // @namespace    gzinho
-// @version      3.0
+// @version      3.1
 // @description  Manda uma mensagem a cada 8-10 min nos canais da Kick que você ativar, só com a live no ar
 // @match        https://kick.com/*
 // @noframes
@@ -16,13 +16,16 @@
 // No painel: pausar, mandar agora, idioma das frases, minimizar e desativar o canal.
 (() => {
   "use strict";
-  const VERSAO = "3.0";
+  const VERSAO = "3.1";
   const T = window.__autoChatTeste || {};            // só para os testes automáticos (acelera os tempos)
   const tempo = (padrao, chave) => (T[chave] ?? padrao);
 
   // ======================= CONFIGURAÇÃO =======================
   const CANAIS_PADRAO = ["gabepeixe", "brabox", "orenatovicente"];
   const MINUTOS_BASE = 8, VARIACAO_MIN = 2;          // 8 a 10 minutos entre mensagens
+  // Regra dos pontos (Peixes do Gabe): 1 a cada 15 min escrevendo no chat durante a live;
+  // uma pausa de mais de 15 min não conta. O painel avisa antes de chegar nesse limite.
+  const LIMITE_PAUSA_MS = tempo(15 * 60000, "limiteMs"), ALERTA_PAUSA_MS = tempo(12 * 60000, "alertaMs");
   // Frases com 5+ palavras. O script lê o clima do chat: rindo -> risada, triste -> triste, resto -> neutro
   const FRASES = {
     pt: {
@@ -176,6 +179,8 @@
     #autochat .ac-num{display:flex;gap:12px;color:#a7b0c0;margin:4px 0}
     #autochat .ac-num b{color:#e7f5e4;font-variant-numeric:tabular-nums}
     #autochat .ac-log{color:#a7b0c0;margin:4px 0;min-height:18px;word-break:break-word}
+    #autochat .ac-ult{color:#a7b0c0}
+    #autochat .ac-ult.risco{color:#ff6b6b;font-weight:600}
     #autochat .ac-alerta{color:#ff6b6b;font-weight:600;margin:6px 0}
     #autochat [hidden]{display:none !important}
     #autochat .ac-bts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
@@ -192,7 +197,7 @@
   // ======================= UM CANAL =======================
   function iniciarCanal(canal) {
     let parado = false, timer = null, retry = null, tick = null, minuto = null, vigia = null;
-    let proximo = 0, status = "carregando", checagensOff = 0, copiaFora = "", baseFora = null, semCampo = 0;
+    let proximo = 0, status = "carregando", checagensOff = 0, copiaFora = "", baseFora = null, semCampo = 0, aoVivoDesde = 0;
     const recentes = ler(`recentes:${canal}`, []);
     const pausado = () => ler(`pausado:${canal}`, false);
     const idiomaEscolhido = () => ler(`idioma:${canal}`, "auto");
@@ -205,7 +210,8 @@
         <button type="button" class="ac-ico" data-a="min" title="Minimizar">–</button></div>
       <div class="ac-corpo">
         <div class="ac-st"></div>
-        <div class="ac-num"><span>Hoje: <b class="ac-msgs">0</b> msg</span><span>Ao vivo: <b class="ac-min">0h00</b></span><span>≈ <b class="ac-pts">0</b> pts</span></div>
+        <div class="ac-num"><span>Hoje: <b class="ac-msgs">0</b> msg</span><span>Valendo: <b class="ac-min">0h00</b></span><span>≈ <b class="ac-pts">0</b> <span class="ac-un">pts</span></span></div>
+        <div class="ac-ult"></div>
         <div class="ac-log"></div>
         <div class="ac-alerta" data-al="antiga" hidden></div>
         <div class="ac-alerta" data-al="fora" hidden></div>
@@ -241,6 +247,13 @@
       $(".ac-msgs").textContent = e.msgs || 0;
       $(".ac-min").textContent = `${Math.floor((e.minutos || 0) / 60)}h${String((e.minutos || 0) % 60).padStart(2, "0")}`;
       $(".ac-pts").textContent = Math.floor((e.minutos || 0) / 15);
+      $(".ac-un").textContent = canal === "gabepeixe" ? "🐟" : "pts";
+      // tempo desde a última mensagem enviada: passar de 15 min com a live no ar perde o ponto
+      const ult = ler(`ultimo:${canal}`, 0);
+      const risco = st === "aovivo" && Date.now() - Math.max(ult, aoVivoDesde) > ALERTA_PAUSA_MS;   // conta a partir do início da live
+      const ultEl = $(".ac-ult");
+      ultEl.textContent = (ult ? `Última mensagem: há ${Math.floor((Date.now() - ult) / 60000)} min` : "Última mensagem: —") + (risco ? " ⚠ perto de 15 min sem escrever (a pausa não conta)" : "");
+      ultEl.classList.toggle("risco", risco);
       $('[data-a="pausa"]').textContent = pausado() ? "▶ Retomar" : "⏸ Pausar";
       const id = idiomaEscolhido();
       $('[data-a="idioma"]').textContent = id === "auto" ? "🌐 Auto" : id === "es" ? "🌐 ES" : "🌐 PT";
@@ -292,7 +305,7 @@
       ];
       const tentar = (i) => {
         if (parado) return;
-        if (vazio()) { somarHoje(canal, "msgs"); log(`Enviado [${idioma} · ${clima}]: "${msg}"`); atualizarPainel(); return; }
+        if (vazio()) { somarHoje(canal, "msgs"); gravar(`ultimo:${canal}`, Date.now()); log(`Enviado [${idioma} · ${clima}]: "${msg}"`); atualizarPainel(); return; }
         if (i >= tentativas.length) { log("Não consegui enviar (modo lento?): tento de novo em 60s"); tentarDepois(tempo(60000, "falhaMs")); return; }
         try { tentativas[i](); } catch (e) {}
         setTimeout(() => tentar(i + 1), tempo(2500, "tentativaMs"));
@@ -323,6 +336,7 @@
         return;
       }
       if (ler(chaveOff, false)) { gravar(chaveOff, false); avisar(`${canal} abriu a live! Auto-chat ligado.`); }
+      if (status !== "aovivo") aoVivoDesde = Date.now();
       status = "aovivo"; checagensOff = 0;
       enviar();
       agendar(tempo((MINUTOS_BASE + Math.random() * VARIACAO_MIN) * 60000, "intervaloMs"));
@@ -361,7 +375,10 @@
     };
     tick = setInterval(atualizarPainel, 1000);
     // minutos com a live no ar e o script ligado (para estimar os pontos do dia: 1 a cada 15 min)
-    minuto = setInterval(() => { if (!parado && status === "aovivo" && !pausado() && slugAtual() === canal) { somarHoje(canal, "minutos"); atualizarPainel(); } }, tempo(60000, "minutoMs"));
+    minuto = setInterval(() => {
+      const ult = ler(`ultimo:${canal}`, 0);
+      if (!parado && status === "aovivo" && !pausado() && slugAtual() === canal && ult && Date.now() - ult <= LIMITE_PAUSA_MS) { somarHoje(canal, "minutos"); atualizarPainel(); }
+    }, tempo(60000, "minutoMs"));
     setTimeout(() => { if (parado) return; vigiarFora(); vigia = setInterval(vigiarFora, 5000); }, tempo(15000, "vigiaMs"));
     log("Carregando…");
     atualizarPainel();

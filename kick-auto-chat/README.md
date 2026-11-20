@@ -10,12 +10,17 @@ da Kick que você ativar. Funciona no navegador do computador, com a aba da live
 3. Abra `kick-auto-chat.user.js` → botão **Raw** → **Instalar** (ou **Atualizar**).
 4. Abra a live. O painel aparece no canto inferior esquerdo.
 
-Ele se atualiza sozinho. Deixe **só uma** cópia instalada (Tampermonkey → Painel de opções).
+Ele se atualiza sozinho. Deixe **só uma** cópia instalada (Tampermonkey → Painel de opções) e **um computador só** em cada
+live: outro PC com uma versão antiga aberta na página manda mensagem até com a live offline.
 
 ## O painel
 - 🟢 **Ao vivo · próxima em X:XX** — contagem para a próxima mensagem. Offline: não manda nada.
-- **Hoje / Ao vivo / ≈ pts** — mensagens do dia, tempo de live com o script ligado e a estimativa de
-  pontos (1 a cada 15 minutos ao vivo).
+- **Hoje / Valendo / ≈ pts** — mensagens do dia, tempo de live que está valendo ponto e a estimativa
+  (no Gabe aparece 🐟). Regra dos Peixes: 1 a cada 15 min escrevendo no chat durante a live; uma pausa
+  de mais de 15 min não conta. Por isso o script escreve a cada 8–10 min e só conta o tempo até 15 min
+  depois da última mensagem.
+- **Última mensagem: há X min** — fica vermelho perto de 15 min sem escrever (ex.: modo lento do chat
+  ou você digitando no campo).
 - **⏸ Pausar / ▶ Retomar** — para de mandar sem desligar (fica salvo mesmo recarregando a página).
 - **✉ Enviar agora**, **🌐 Auto/PT/ES** (idioma das frases; Auto escolhe pelo chat), **🔔 Avisos**
   (notificação quando a live abrir), **–** minimiza.
