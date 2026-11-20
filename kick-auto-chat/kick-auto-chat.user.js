@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kick auto-chat Gabepeixe
 // @namespace    gzinho
-// @version      1.5
+// @version      1.6
 // @description  Manda mensagem de 5+ palavras a cada 8-10 min nas lives do Gabepeixe e Brabox
 // @match        https://kick.com/gabepeixe*
 // @match        https://kick.com/brabox*
@@ -81,16 +81,46 @@
     setTimeout(() => tentar(0), 400);
     return true;
   };
+  const canal = location.pathname.split("/")[1] || "";
+  let estavaAoVivo = null;
+  const estaAoVivo = async () => {
+    try {
+      const r = await fetch(`/api/v2/channels/${canal}`, { credentials: "include" });
+      if (!r.ok) return true;         
+      const j = await r.json();
+      if (!j || !("livestream" in j)) return true;  
+      return !!(j.livestream && j.livestream.is_live !== false);
+    } catch (e) { return true; }
+  };
+  const avisar = t => {
+    try { if (window.Notification && Notification.permission === "granted") new Notification(t); } catch (e) {}
+    const titulo = document.title; let n = 0;
+    const pisca = setInterval(() => { document.title = n++ % 2 ? titulo : "🔴 AO VIVO!"; if (n > 20) { clearInterval(pisca); document.title = titulo; } }, 1000);
+  };
+  const ciclo = async () => {
+    if (!(await estaAoVivo())) {
+      estavaAoVivo = false;
+      log("Live offline, esperando começar...");
+      proximo = Date.now() + 60000;
+      timer = setTimeout(ciclo, 60000);
+      return;
+    }
+    if (estavaAoVivo === false) avisar(`${canal} abriu a live! Auto-chat ligado.`);
+    estavaAoVivo = true;
+    enviar();
+    agendar();
+  };
   const agendar = () => {
     const ms = (MINUTOS_BASE + Math.random() * VARIACAO_MIN) * 60 * 1000;
     proximo = Date.now() + ms;
-    timer = setTimeout(() => { enviar(); agendar(); }, ms);
+    timer = setTimeout(ciclo, ms);
   };
   const painel = document.createElement("div");
   painel.style.cssText = "position:fixed;bottom:16px;left:16px;z-index:999999;background:#111;color:#53fc18;" +
     "font:13px monospace;padding:10px 12px;border:1px solid #53fc18;border-radius:8px;max-width:280px";
   painel.innerHTML = '<b>Auto-chat ativo: ' + (location.pathname.split('/')[1] || '') + '</b><div id="ac-tempo"></div><div id="ac-log" style="color:#aaa;margin:4px 0"></div>' +
-    '<button id="ac-agora" style="margin-right:6px">Enviar agora</button><button id="ac-parar">Parar</button>';
+    '<button id="ac-agora" style="margin-right:6px">Enviar agora</button><button id="ac-parar">Parar</button>' +
+    '<button id="ac-avisos" style="margin-left:6px">Ativar avisos</button>';
   document.body.appendChild(painel);
   const log = t => { painel.querySelector("#ac-log").textContent = t; console.log("[auto-chat]", t); };
   tick = setInterval(() => {
@@ -100,8 +130,10 @@
   const stop = () => { clearTimeout(timer); clearInterval(tick); painel.remove(); delete window.__autoChat; console.log("[auto-chat] parado"); };
   painel.querySelector("#ac-parar").onclick = stop;
   painel.querySelector("#ac-agora").onclick = () => enviar();
+  const btnAvisos = painel.querySelector("#ac-avisos");
+  if (!window.Notification || Notification.permission === "granted") btnAvisos.remove();
+  else btnAvisos.onclick = () => Notification.requestPermission().then(p => { if (p === "granted") { btnAvisos.remove(); new Notification("Avisos ligados: vou te avisar quando a live abrir"); } });
   window.__autoChat = { stop, enviar };
-  enviar();  
-  agendar();
+  ciclo();  
 
 })();
