@@ -1,25 +1,38 @@
-# Kick auto-chat (pontos Gabepeixe)
+# Kick auto-chat (pontos dos streamers)
 
-Manda uma mensagem de 5+ palavras no chat das lives do Gabepeixe, do Brabox e do ORenatoVicente na Kick a cada 8–10 minutos.
-Funciona só em navegador de computador, com a aba da live aberta e você logado.
+Manda uma mensagem de 5+ palavras no chat a cada 8 a 10 minutos **só com a live no ar**, nos canais
+da Kick que você ativar. Funciona no navegador do computador, com a aba da live aberta e você logado.
 
-## Opção 1 — Favorito (mais fácil, 1 clique)
-1. Abra `favorito.txt`, clique no botão de copiar.
-2. No Chrome, aperte **Ctrl+Shift+O** (gerenciador de favoritos) → ⋮ → **Adicionar novo favorito**.
-3. Nome: `Auto-chat`. URL: cole o que copiou. Salve.
-4. Na live do Gabepeixe, clique no favorito. Pronto.
-
-## Opção 2 — Automático com Tampermonkey (liga sozinho)
+## Instalar (Tampermonkey — liga sozinho)
 1. Instale a extensão **Tampermonkey** no Chrome.
-2. Em `chrome://extensions`, ative o **Modo do desenvolvedor** (necessário para scripts de usuário).
-3. Abra `kick-auto-chat.user.js` → botão **Raw** → o Tampermonkey oferece instalar → **Instalar**.
-4. Toda vez que abrir kick.com/gabepeixe o script liga sozinho.
+2. Em `chrome://extensions`, abra **Detalhes** do Tampermonkey: **Acesso a sites → Em todos os sites**
+   e ative **Permitir scripts do usuário** (ou o Modo do desenvolvedor).
+3. Abra `kick-auto-chat.user.js` → botão **Raw** → **Instalar** (ou **Atualizar**).
+4. Abra a live. O painel aparece no canto inferior esquerdo.
 
-## Opção 3 — Console
-Na live, aperte **Ctrl+Shift+J** (Chrome/Edge), **Ctrl+Shift+K** (Firefox) ou **Cmd+Option+J** (Mac),
-cole `kick-auto-chat.js` e Enter (se bloquear, digite `allow pasting` antes).
+Ele se atualiza sozinho. Deixe **só uma** cópia instalada (Tampermonkey → Painel de opções).
 
-Um painel verde aparece no canto inferior esquerdo com a contagem e os botões **Enviar agora** / **Parar**.
-Para trocar as frases, edite a lista `MENSAGENS` (mantenha 5+ palavras cada).
+## O painel
+- 🟢 **Ao vivo · próxima em X:XX** — contagem para a próxima mensagem. Offline: não manda nada.
+- **Hoje / Ao vivo / ≈ pts** — mensagens do dia, tempo de live com o script ligado e a estimativa de
+  pontos (1 a cada 15 minutos ao vivo).
+- **⏸ Pausar / ▶ Retomar** — para de mandar sem desligar (fica salvo mesmo recarregando a página).
+- **✉ Enviar agora**, **🌐 Auto/PT/ES** (idioma das frases; Auto escolhe pelo chat), **🔔 Avisos**
+  (notificação quando a live abrir), **–** minimiza.
+- **Desativar aqui** — tira o canal da lista.
+
+## Canais
+Já vem ligado em `gabepeixe`, `brabox` e `orenatovicente`. Em qualquer outro canal aparece o botão
+**🤖 Ativar auto-chat aqui** (o ✕ esconde o botão naquele canal). Se você trocar de canal na mesma aba,
+o script para e não manda mensagem no canal errado.
+
+## Frases
+Português ou espanhol, com 5+ palavras, de acordo com o clima do chat (rindo, triste ou normal), sem
+repetir as últimas 6 e às vezes com um emoji no fim.
+
+## Avisos em vermelho
+- **Versão ANTIGA nesta página**: apague as outras cópias no Tampermonkey.
+- **Cópia antiga em outra aba/navegador**: no Chrome, Ctrl+Shift+A, digite `kick` e feche as outras abas.
+- **Não achei o campo do chat**: confira se está logado e com o chat aberto.
 
 Uso por conta e risco: automação de chat pode violar as regras da Kick e do sistema de pontos.
