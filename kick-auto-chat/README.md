@@ -1,6 +1,6 @@
 # Kick auto-chat (pontos Gabepeixe)
 
-Manda uma mensagem de 5+ palavras no chat da live da Kick a cada 8–10 minutos.
+Manda uma mensagem de 5+ palavras no chat das lives do Gabepeixe e do Brabox na Kick a cada 8–10 minutos.
 Funciona só em navegador de computador, com a aba da live aberta e você logado.
 
 ## Opção 1 — Favorito (mais fácil, 1 clique)

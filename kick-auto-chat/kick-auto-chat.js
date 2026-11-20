@@ -1,4 +1,4 @@
-// Kick auto-chat: manda uma mensagem a cada ~8 min (com variação aleatória).
+// Kick auto-chat: manda uma mensagem a cada ~8-10 min (com variação aleatória).
 // Uso: abra a live no kick.com (PC), aperte F12 > aba Console, cole tudo e Enter.
 // Para parar: clique em "Parar" no painel ou recarregue a página.
 (() => {
@@ -7,23 +7,23 @@
   // ====== CONFIGURAÇÃO ======
   const MINUTOS_BASE = 8;       // intervalo mínimo
   const VARIACAO_MIN = 2;       // + até 2 min aleatórios (parece menos robô)
-  // Cada mensagem tem 5 palavras ou mais (regra dos pontos)
+  // Mensagens simples, todas com 5+ palavras, servem para qualquer canal
   const MENSAGENS = [
-    "boa gabe essa foi demais",
-    "salve chat tamo junto aqui hoje",
-    "que jogada brabo demais mano kkkk",
-    "tô assistindo aqui desde o começo",
-    "essa live tá muito boa hoje",
-    "kkkkk não acredito que isso aconteceu",
-    "gabe você é muito monstro mesmo",
-    "bora gabe vamos pra cima deles",
-    "melhor live da kick com certeza",
-    "aí sim agora a coisa ficou boa",
-    "slk mano que momento foi esse",
-    "chat tá muito animado hoje hein",
-    "quero ver essa próxima partida aí",
-    "essa foi pro clipe com certeza",
-    "gabe manda um salve pra galera"
+    "boa essa foi muito boa",
+    "salve chat tamo junto aqui",
+    "kkkkk essa foi muito engraçada",
+    "tô assistindo aqui desde cedo",
+    "essa live tá muito boa",
+    "não acredito que isso aconteceu",
+    "bora que bora vamos nessa",
+    "aí sim agora ficou bom",
+    "que momento foi esse mano",
+    "chat tá animado hoje hein",
+    "essa foi pro clipe hein",
+    "manda um salve pra galera",
+    "tamo junto até o final",
+    "melhor parte da live até agora",
+    "kkkk ri muito com essa"
   ];
   // ==========================
 
@@ -89,7 +89,7 @@
   const painel = document.createElement("div");
   painel.style.cssText = "position:fixed;bottom:16px;left:16px;z-index:999999;background:#111;color:#53fc18;" +
     "font:13px monospace;padding:10px 12px;border:1px solid #53fc18;border-radius:8px;max-width:280px";
-  painel.innerHTML = '<b>Auto-chat ativo</b><div id="ac-tempo"></div><div id="ac-log" style="color:#aaa;margin:4px 0"></div>' +
+  painel.innerHTML = '<b>Auto-chat ativo: ' + (location.pathname.split('/')[1] || '') + '</b><div id="ac-tempo"></div><div id="ac-log" style="color:#aaa;margin:4px 0"></div>' +
     '<button id="ac-agora" style="margin-right:6px">Enviar agora</button><button id="ac-parar">Parar</button>';
   document.body.appendChild(painel);
   const log = t => { painel.querySelector("#ac-log").textContent = t; console.log("[auto-chat]", t); };
