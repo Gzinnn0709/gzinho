@@ -1,10 +1,12 @@
 // ==UserScript==
 // @name         Kick auto-chat Gabepeixe
 // @namespace    gzinho
-// @version      2.1
-// @description  Manda mensagem de 5+ palavras a cada 8-10 min nas lives do Gabepeixe e Brabox
+// @version      2.2
+// @description  Manda mensagem de 5+ palavras a cada 8-10 min nas lives do Gabepeixe, Brabox e ORenatoVicente
 // @match        https://kick.com/gabepeixe*
 // @match        https://kick.com/brabox*
+// @match        https://kick.com/orenatovicente*
+// @match        https://kick.com/ORenatoVicente*
 // @grant        none
 // @run-at       document-idle
 // @updateURL    https://github.com/Gzinnn0709/gzinho/raw/claude/gabepeixe-pontos-automatico-d2ra5w/kick-auto-chat/kick-auto-chat.user.js
