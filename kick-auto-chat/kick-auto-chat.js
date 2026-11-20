@@ -2,7 +2,15 @@
 // Uso: abra a live no kick.com (PC), aperte F12 > aba Console, cole tudo e Enter.
 // Para parar: clique em "Parar" no painel ou recarregue a página.
 (() => {
-  if (window.__autoChat) { window.__autoChat.stop(); }
+  const VERSAO = "2.3";
+  // Cópia anterior do script nesta página: versão nova (2.3+) é trocada normalmente;
+  // versão ANTIGA (até 2.2) é desligada e o painel avisa para apagá-la do Tampermonkey
+  let copiaAntiga = false;
+  const anterior = window.__autoChat;
+  if (anterior) {
+    if (typeof anterior.parar === "function") anterior.parar();
+    else { try { anterior.stop(); } catch (e) {} copiaAntiga = true; }
+  }
 
   // ====== CONFIGURAÇÃO ======
   const MINUTOS_BASE = 8;       // intervalo mínimo
@@ -53,7 +61,7 @@
   // ==========================
 
   let ultima = "";
-  let timer = null, tick = null, proximo = 0, enviadas = 0;
+  let timer = null, tick = null, retry = null, proximo = 0, enviadas = 0, parado = false;
 
   const acharInput = () =>
     document.querySelector('[data-testid="chat-input"]') ||
@@ -66,6 +74,38 @@
     document.querySelector('button[aria-label*="send" i], button[aria-label*="enviar" i]') ||
     document.querySelector('[data-testid="send-message-button"]') ||
     [...document.querySelectorAll("button")].find(b => /^(chat|enviar|send|bate-papo)$/i.test(b.textContent.trim()) && b.offsetParent);
+
+  // Frases das versões antigas (até a 1.7), que mandavam mensagem até com a live offline
+  const FRASES_ANTIGAS = new Set([
+    "boa gabe essa foi demais", "salve chat tamo junto aqui hoje", "que jogada brabo demais mano kkkk",
+    "tô assistindo aqui desde o começo", "essa live tá muito boa hoje", "kkkkk não acredito que isso aconteceu",
+    "gabe você é muito monstro mesmo", "bora gabe vamos pra cima deles", "melhor live da kick com certeza",
+    "aí sim agora a coisa ficou boa", "slk mano que momento foi esse", "chat tá muito animado hoje hein",
+    "quero ver essa próxima partida aí", "essa foi pro clipe com certeza", "gabe manda um salve pra galera",
+    "boa essa foi muito boa", "salve chat tamo junto aqui", "kkkkk essa foi muito engraçada",
+    "tô assistindo aqui desde cedo", "essa live tá muito boa", "não acredito que isso aconteceu",
+    "bora que bora vamos nessa", "aí sim agora ficou bom", "que momento foi esse mano",
+    "chat tá animado hoje hein", "essa foi pro clipe hein", "manda um salve pra galera",
+    "tamo junto até o final", "melhor parte da live até agora", "kkkk ri muito com essa"
+  ]);
+  // Apaga do campo do chat a mensagem que uma cópia antiga acabou de digitar (antes dela enviar)
+  const limparMensagemAntiga = () => {
+    const input = acharInput();
+    if (!input || !FRASES_ANTIGAS.has((input.textContent || "").trim())) return;
+    input.focus();
+    document.execCommand("selectAll", false, null);
+    document.execCommand("delete", false, null);
+    log("⛔ Bloqueei uma mensagem da versão antiga do script");
+  };
+  const barrarCopiaAntiga = () => {
+    copiaAntiga = true;
+    [50, 200, 350].forEach(ms => setTimeout(limparMensagemAntiga, ms));
+  };
+  // Nova tentativa depois de um tempo: só manda se a live ainda estiver no ar
+  const tentarDepois = ms => {
+    clearTimeout(retry);
+    retry = setTimeout(async () => { if (!parado && await estaAoVivo() && !parado) enviar(); }, ms);
+  };
 
   // Lê as últimas mensagens do chat e decide o clima
   const lerClima = input => {
@@ -93,7 +133,7 @@
   const enviar = () => {
     const input = acharInput();
     if (!input) { log("Não achei o campo do chat. Você está logado e com o chat aberto?"); return false; }
-    if ((input.textContent || "").trim()) { log("Você está digitando, tento de novo em 30s"); setTimeout(enviar, 30000); return false; }
+    if ((input.textContent || "").trim()) { log("Você está digitando, tento de novo em 30s"); tentarDepois(30000); return false; }
     let clima = "neutro";
     try { clima = lerClima(input); } catch (e) {}
     const msg = escolher(clima);
@@ -113,7 +153,7 @@
     ];
     const tentar = i => {
       if (vazio()) { enviadas++; log(`Enviado [${clima}]: "${msg}" (total: ${enviadas})`); return; }
-      if (i >= tentativas.length) { log(`Não consegui enviar (modo lento?), tento de novo em 60s`); setTimeout(enviar, 60000); return; }
+      if (i >= tentativas.length) { log(`Não consegui enviar (modo lento?), tento de novo em 60s`); tentarDepois(60000); return; }
       try { tentativas[i](); } catch (e) {}
       setTimeout(() => tentar(i + 1), 2500);
     };
@@ -150,7 +190,10 @@
   const gravarOff = v => { try { v ? sessionStorage.setItem(chaveOff, "1") : sessionStorage.removeItem(chaveOff); } catch (e) {} };
   let checagensOff = 0;
   const ciclo = async () => {
-    if (!(await estaAoVivo())) {
+    if (parado) return;
+    const aoVivo = await estaAoVivo();
+    if (parado) return;
+    if (!aoVivo) {
       gravarOff(true);
       checagensOff++;
       // a página do canal nem sempre se atualiza sozinha: recarrega a cada 5 min enquanto offline
@@ -176,7 +219,7 @@
   painel.style.cssText = "position:fixed;bottom:16px;left:16px;z-index:999999;background:#111;color:#53fc18;" +
     "font:13px monospace;padding:10px 12px;border:1px solid #53fc18;border-radius:8px;max-width:280px";
   painel.innerHTML = '<b>Auto-chat ativo: ' + (location.pathname.split('/')[1] || '') + '</b><div id="ac-tempo"></div><div id="ac-log" style="color:#aaa;margin:4px 0"></div>' +
-    '<div id="ac-dup" style="display:none;color:#ff5555;font-weight:bold;margin:4px 0">⚠ Tem OUTRA cópia do auto-chat rodando nesta página! Apague as cópias antigas no Tampermonkey.</div>' +
+    '<div id="ac-dup" style="display:none;color:#ff5555;font-weight:bold;margin:4px 0">⚠ Tem uma cópia ANTIGA do auto-chat instalada (ela manda mensagem até com a live offline; eu bloqueio quando consigo). Apague-a: Tampermonkey → Painel de opções → deixe só a versão ' + VERSAO + '.</div>' +
     '<button id="ac-agora" style="margin-right:6px">Enviar agora</button><button id="ac-parar">Parar</button>' +
     '<button id="ac-avisos" style="margin-left:6px">Ativar avisos</button>';
   document.body.appendChild(painel);
@@ -185,19 +228,33 @@
   tick = setInterval(() => {
     const s = Math.max(0, Math.round((proximo - Date.now()) / 1000));
     painel.querySelector("#ac-tempo").textContent = `Próxima em ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    // Cópia antiga que começou depois desta: desliga ela e volta a ser a cópia ativa
+    if (!parado && window.__autoChat !== eu) {
+      const outro = window.__autoChat;
+      if (outro && typeof outro.parar !== "function") { try { outro.stop(); } catch (e) {} barrarCopiaAntiga(); }
+      if (!outro || typeof outro.parar !== "function") window.__autoChat = eu;
+    }
     // Avisa se tiver outro painel de auto-chat (cópia antiga instalada)
     const copias = [...document.body.children].filter(e => e.style && e.style.position === "fixed" && (e.textContent || "").trim().startsWith("Auto-chat ativo")).length;
-    painel.querySelector("#ac-dup").style.display = copias > 1 ? "block" : "none";
+    painel.querySelector("#ac-dup").style.display = (copias > 1 || copiaAntiga) ? "block" : "none";
   }, 1000);
 
-  const stop = () => { clearTimeout(timer); clearInterval(tick); painel.remove(); delete window.__autoChat; console.log("[auto-chat] parado"); };
+  const stop = () => {
+    parado = true;
+    clearTimeout(timer); clearTimeout(retry); clearInterval(tick); painel.remove();
+    if (window.__autoChat === eu) delete window.__autoChat;
+    console.log("[auto-chat] parado");
+  };
   painel.querySelector("#ac-parar").onclick = stop;
   painel.querySelector("#ac-agora").onclick = () => enviar();
   const btnAvisos = painel.querySelector("#ac-avisos");
   if (!window.Notification || Notification.permission === "granted") btnAvisos.remove();
   else btnAvisos.onclick = () => Notification.requestPermission().then(p => { if (p === "granted") { btnAvisos.remove(); new Notification("Avisos ligados: vou te avisar quando a live abrir"); } });
 
-  window.__autoChat = { stop, enviar };
+  // versões antigas chamam .stop() quando começam: em vez de desligar esta, bloqueia a mensagem delas
+  const eu = { versao: VERSAO, parar: stop, enviar, stop: () => barrarCopiaAntiga() };
+  window.__autoChat = eu;
+  if (copiaAntiga) barrarCopiaAntiga();
   // espera 8s para a página terminar de montar (faixa OFFLINE etc.) antes da 1ª checagem
   log("Carregando, conferindo se a live está no ar...");
   proximo = Date.now() + 8000;
