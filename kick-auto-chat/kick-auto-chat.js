@@ -176,6 +176,7 @@
   painel.style.cssText = "position:fixed;bottom:16px;left:16px;z-index:999999;background:#111;color:#53fc18;" +
     "font:13px monospace;padding:10px 12px;border:1px solid #53fc18;border-radius:8px;max-width:280px";
   painel.innerHTML = '<b>Auto-chat ativo: ' + (location.pathname.split('/')[1] || '') + '</b><div id="ac-tempo"></div><div id="ac-log" style="color:#aaa;margin:4px 0"></div>' +
+    '<div id="ac-dup" style="display:none;color:#ff5555;font-weight:bold;margin:4px 0">⚠ Tem OUTRA cópia do auto-chat rodando nesta página! Apague as cópias antigas no Tampermonkey.</div>' +
     '<button id="ac-agora" style="margin-right:6px">Enviar agora</button><button id="ac-parar">Parar</button>' +
     '<button id="ac-avisos" style="margin-left:6px">Ativar avisos</button>';
   document.body.appendChild(painel);
@@ -184,6 +185,9 @@
   tick = setInterval(() => {
     const s = Math.max(0, Math.round((proximo - Date.now()) / 1000));
     painel.querySelector("#ac-tempo").textContent = `Próxima em ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    // Avisa se tiver outro painel de auto-chat (cópia antiga instalada)
+    const copias = [...document.body.children].filter(e => e.style && e.style.position === "fixed" && (e.textContent || "").trim().startsWith("Auto-chat ativo")).length;
+    painel.querySelector("#ac-dup").style.display = copias > 1 ? "block" : "none";
   }, 1000);
 
   const stop = () => { clearTimeout(timer); clearInterval(tick); painel.remove(); delete window.__autoChat; console.log("[auto-chat] parado"); };
