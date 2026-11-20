@@ -7,23 +7,28 @@
   // ====== CONFIGURAÇÃO ======
   const MINUTOS_BASE = 8;       // intervalo mínimo
   const VARIACAO_MIN = 2;       // + até 2 min aleatórios (parece menos robô)
-  // Mensagens simples, todas com 5+ palavras, servem para qualquer canal
+  // Mensagens curtas e com humor, todas com 5+ palavras, servem para qualquer canal
   const MENSAGENS = [
-    "boa essa foi muito boa",
-    "salve chat tamo junto aqui",
-    "kkkkk essa foi muito engraçada",
-    "tô assistindo aqui desde cedo",
-    "essa live tá muito boa",
-    "não acredito que isso aconteceu",
-    "bora que bora vamos nessa",
-    "aí sim agora ficou bom",
-    "que momento foi esse mano",
-    "chat tá animado hoje hein",
-    "essa foi pro clipe hein",
-    "manda um salve pra galera",
-    "tamo junto até o final",
-    "melhor parte da live até agora",
-    "kkkk ri muito com essa"
+    "kkkkk eu não aguento mais rir",
+    "chat eu tô passando mal kkkkk",
+    "isso aqui é melhor que novela",
+    "minha mãe perguntou por que tô rindo",
+    "alguém clipa isso pelo amor de deus",
+    "eu vim só olhar e fiquei kkkk",
+    "o roteirista dessa live tá de parabéns",
+    "não era pra eu tá rindo disso",
+    "rindo sozinho aqui igual doido kkkk",
+    "nível de caos dessa live tá alto",
+    "chat alguém explica o que aconteceu",
+    "eu juro que pisquei e perdi tudo",
+    "melhor que qualquer filme de comédia",
+    "essa live faz mal pro coração",
+    "o chat tá mais doido que a live",
+    "tô aqui só pelo caos mesmo kkkk",
+    "isso merece ir pro clipe urgente",
+    "parei tudo pra ver isso aqui",
+    "quem riu também levanta a mão",
+    "boa demais essa kkkkk morri aqui"
   ];
   // ==========================
 
