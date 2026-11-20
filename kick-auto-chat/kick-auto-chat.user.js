@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kick auto-chat Gabepeixe
 // @namespace    gzinho
-// @version      1.8
+// @version      1.9
 // @description  Manda mensagem de 5+ palavras a cada 8-10 min nas lives do Gabepeixe e Brabox
 // @match        https://kick.com/gabepeixe*
 // @match        https://kick.com/brabox*
@@ -18,7 +18,7 @@
   if (window.__autoChat) { window.__autoChat.stop(); }
   const MINUTOS_BASE = 8;      
   const VARIACAO_MIN = 2;      
-  const MENSAGENS = [
+  const HUMOR = [
     "kkkkk eu não aguento mais rir",
     "chat eu tô passando mal kkkkk",
     "isso aqui é melhor que novela",
@@ -28,17 +28,33 @@
     "o roteirista dessa live tá de parabéns",
     "não era pra eu tá rindo disso",
     "rindo sozinho aqui igual doido kkkk",
-    "nível de caos dessa live tá alto",
-    "chat alguém explica o que aconteceu",
-    "eu juro que pisquei e perdi tudo",
-    "melhor que qualquer filme de comédia",
-    "essa live faz mal pro coração",
     "o chat tá mais doido que a live",
     "tô aqui só pelo caos mesmo kkkk",
-    "isso merece ir pro clipe urgente",
-    "parei tudo pra ver isso aqui",
+    "boa demais essa kkkkk morri aqui",
     "quem riu também levanta a mão",
-    "boa demais essa kkkkk morri aqui"
+    "melhor que qualquer filme de comédia"
+  ];
+  const NEUTRAS = [
+    "tô acompanhando aqui desde cedo hoje",
+    "salve chat tamo junto aqui",
+    "tamo junto até o final da live",
+    "chat tá movimentado hoje hein",
+    "acompanhando tudo aqui com atenção",
+    "tô aqui firme e forte acompanhando",
+    "chat alguém explica o que aconteceu",
+    "eu juro que pisquei e perdi tudo",
+    "parei tudo pra ver isso aqui",
+    "isso merece ir pro clipe urgente",
+    "nível de caos dessa live tá alto",
+    "essa live faz mal pro coração"
+  ];
+  const TRISTE = [
+    "força aí tamo junto com você",
+    "sinto muito mesmo, muita força aí",
+    "meus sentimentos, força pra todo mundo",
+    "que momento pesado, tamo junto aqui",
+    "força chat, momento difícil esse aí",
+    "tamo junto nessa, muita força mesmo"
   ];
   let ultima = "";
   let timer = null, tick = null, proximo = 0, enviadas = 0;
@@ -52,10 +68,24 @@
     document.querySelector('button[aria-label*="send" i], button[aria-label*="enviar" i]') ||
     document.querySelector('[data-testid="send-message-button"]') ||
     [...document.querySelectorAll("button")].find(b => /^(chat|enviar|send|bate-papo)$/i.test(b.textContent.trim()) && b.offsetParent);
-  const escolher = () => {
+  const lerClima = input => {
+    let el = input, txt = "";
+    for (let i = 0; i < 15 && el.parentElement; i++) { el = el.parentElement; txt = el.innerText || ""; if (txt.length > 800) break; }
+    for (const m of [...HUMOR, ...NEUTRAS, ...TRISTE]) txt = txt.split(m).join(" ");  
+    txt = txt.slice(-2500);
+    const conta = re => (txt.match(re) || []).length;
+    const risos = conta(/k{4,}|(?:ha){3,}|(?:rs){3,}|😂|🤣|kekw|lmao/gi);
+    const tristeza = conta(/(^|:)\s*f\s*$|\brip\b|luto|triste|sentimentos|pêsames|descanse em paz|😢|💔|🕊/gim);
+    if (tristeza >= 3 && tristeza >= risos) return "triste";
+    if (risos >= 5) return "risada";
+    return "neutro";
+  };
+  const LISTAS = { risada: HUMOR, neutro: NEUTRAS, triste: TRISTE };
+  const escolher = clima => {
+    const lista = LISTAS[clima] || NEUTRAS;
     let m;
-    do { m = MENSAGENS[Math.floor(Math.random() * MENSAGENS.length)]; }
-    while (m === ultima && MENSAGENS.length > 1);
+    do { m = lista[Math.floor(Math.random() * lista.length)]; }
+    while (m === ultima && lista.length > 1);
     ultima = m;
     return m;
   };
@@ -63,7 +93,9 @@
     const input = acharInput();
     if (!input) { log("Não achei o campo do chat. Você está logado e com o chat aberto?"); return false; }
     if ((input.textContent || "").trim()) { log("Você está digitando, tento de novo em 30s"); setTimeout(enviar, 30000); return false; }
-    const msg = escolher();
+    let clima = "neutro";
+    try { clima = lerClima(input); } catch (e) {}
+    const msg = escolher(clima);
     input.focus();
     document.execCommand("selectAll", false, null);
     document.execCommand("insertText", false, msg);
@@ -78,7 +110,7 @@
       () => { input.closest("form")?.requestSubmit?.(); }
     ];
     const tentar = i => {
-      if (vazio()) { enviadas++; log(`Enviado: "${msg}" (total: ${enviadas})`); return; }
+      if (vazio()) { enviadas++; log(`Enviado [${clima}]: "${msg}" (total: ${enviadas})`); return; }
       if (i >= tentativas.length) { log(`Não consegui enviar (modo lento?), tento de novo em 60s`); setTimeout(enviar, 60000); return; }
       try { tentativas[i](); } catch (e) {}
       setTimeout(() => tentar(i + 1), 2500);
