@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kick auto-chat Gabepeixe
 // @namespace    gzinho
-// @version      2.3
+// @version      2.4
 // @description  Manda mensagem de 5+ palavras a cada 8-10 min nas lives do Gabepeixe, Brabox e ORenatoVicente
 // @match        https://kick.com/gabepeixe*
 // @match        https://kick.com/brabox*
@@ -17,7 +17,7 @@
   const pronto = document.querySelector('[data-testid="chat-input"], div[contenteditable="true"]');
   if (!pronto) return setTimeout(iniciar, 3000);
 
-  const VERSAO = "2.3";
+  const VERSAO = "2.4";
   let copiaAntiga = false;
   const anterior = window.__autoChat;
   if (anterior) {
@@ -88,6 +88,30 @@
     "chat tá animado hoje hein", "essa foi pro clipe hein", "manda um salve pra galera",
     "tamo junto até o final", "melhor parte da live até agora", "kkkk ri muito com essa"
   ]);
+  for (const f of [...HUMOR, ...NEUTRAS, ...TRISTE]) FRASES_ANTIGAS.delete(f);
+  let copiaFora = "", baseFora = null, vigia = null;
+  const frasesAntigasNoChat = () => {
+    const input = acharInput();
+    if (!input) return null;
+    let el = input, txt = "";
+    for (let i = 0; i < 15 && el.parentElement; i++) { el = el.parentElement; txt = el.innerText || ""; if (txt.length > 800) break; }
+    let n = 0, ultima = "";
+    for (const linha of txt.split("\n")) {
+      const l = linha.trim();
+      for (const f of FRASES_ANTIGAS) if (l === f || l.endsWith(": " + f) || l.endsWith(":" + f)) { n++; ultima = f; }
+    }
+    return { n, ultima };
+  };
+  const vigiarFora = () => {
+    if (parado) return;
+    const r = frasesAntigasNoChat();
+    if (!r) return;
+    if (baseFora !== null && r.n > baseFora) {
+      copiaFora = r.ultima;
+      console.warn("[auto-chat] Cópia antiga em outra aba/navegador/aparelho mandou:", r.ultima);
+    }
+    baseFora = r.n;
+  };
   const limparMensagemAntiga = () => {
     const input = acharInput();
     if (!input || !FRASES_ANTIGAS.has((input.textContent || "").trim())) return;
@@ -208,6 +232,7 @@
     "font:13px monospace;padding:10px 12px;border:1px solid #53fc18;border-radius:8px;max-width:280px";
   painel.innerHTML = '<b>Auto-chat ativo: ' + (location.pathname.split('/')[1] || '') + '</b><div id="ac-tempo"></div><div id="ac-log" style="color:#aaa;margin:4px 0"></div>' +
     '<div id="ac-dup" style="display:none;color:#ff5555;font-weight:bold;margin:4px 0">⚠ Tem uma cópia ANTIGA do auto-chat instalada (ela manda mensagem até com a live offline; eu bloqueio quando consigo). Apague-a: Tampermonkey → Painel de opções → deixe só a versão ' + VERSAO + '.</div>' +
+    '<div id="ac-fora" style="display:none;color:#ff5555;font-weight:bold;margin:4px 0"></div>' +
     '<button id="ac-agora" style="margin-right:6px">Enviar agora</button><button id="ac-parar">Parar</button>' +
     '<button id="ac-avisos" style="margin-left:6px">Ativar avisos</button>';
   document.body.appendChild(painel);
@@ -222,10 +247,15 @@
     }
     const copias = [...document.body.children].filter(e => e.style && e.style.position === "fixed" && (e.textContent || "").trim().startsWith("Auto-chat ativo")).length;
     painel.querySelector("#ac-dup").style.display = (copias > 1 || copiaAntiga) ? "block" : "none";
+    const fora = painel.querySelector("#ac-fora");
+    if (copiaFora && fora.style.display !== "block") {
+      fora.textContent = `⚠ Uma cópia ANTIGA do auto-chat mandou "${copiaFora}" de OUTRA aba, navegador ou aparelho (não foi esta). No Chrome: Ctrl+Shift+A, digite "kick" e feche as outras abas da Kick. Veja também outros navegadores e o celular.`;
+      fora.style.display = "block";
+    }
   }, 1000);
   const stop = () => {
     parado = true;
-    clearTimeout(timer); clearTimeout(retry); clearInterval(tick); painel.remove();
+    clearTimeout(timer); clearTimeout(retry); clearInterval(tick); clearInterval(vigia); painel.remove();
     if (window.__autoChat === eu) delete window.__autoChat;
     console.log("[auto-chat] parado");
   };
@@ -237,6 +267,7 @@
   const eu = { versao: VERSAO, parar: stop, enviar, stop: () => barrarCopiaAntiga() };
   window.__autoChat = eu;
   if (copiaAntiga) barrarCopiaAntiga();
+  setTimeout(() => { if (parado) return; vigiarFora(); vigia = setInterval(vigiarFora, 5000); }, 15000);
   log("Carregando, conferindo se a live está no ar...");
   proximo = Date.now() + 8000;
   timer = setTimeout(ciclo, 8000);
