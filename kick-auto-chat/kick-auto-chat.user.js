@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kick auto-chat Gabepeixe
 // @namespace    gzinho
-// @version      1.6
+// @version      1.7
 // @description  Manda mensagem de 5+ palavras a cada 8-10 min nas lives do Gabepeixe e Brabox
 // @match        https://kick.com/gabepeixe*
 // @match        https://kick.com/brabox*
@@ -76,19 +76,25 @@
       if (vazio()) { enviadas++; log(`Enviado: "${msg}" (total: ${enviadas})`); return; }
       if (i >= tentativas.length) { log(`Não consegui enviar (modo lento?), tento de novo em 60s`); setTimeout(enviar, 60000); return; }
       try { tentativas[i](); } catch (e) {}
-      setTimeout(() => tentar(i + 1), 700);
+      setTimeout(() => tentar(i + 1), 2500);
     };
     setTimeout(() => tentar(0), 400);
     return true;
   };
   const canal = location.pathname.split("/")[1] || "";
-  let estavaAoVivo = null;
+  const offlineNaTela = () => {
+    const folhas = [...document.querySelectorAll("span, div, p, h1, h2, h3")].filter(e => e.childElementCount === 0 && e.offsetParent);
+    const selo = folhas.some(e => e.textContent.trim() === "OFFLINE");
+    const frase = folhas.some(e => /(está off-?line|is offline)\s*$/i.test(e.textContent.trim()) && !e.closest("#chatroom, #chatroom-messages, [data-chat-entry], .chat-entry"));
+    return selo && frase;
+  };
   const estaAoVivo = async () => {
+    if (offlineNaTela()) return false;
     try {
       const r = await fetch(`/api/v2/channels/${canal}`, { credentials: "include" });
-      if (!r.ok) return true;         
+      if (!r.ok) return true;
       const j = await r.json();
-      if (!j || !("livestream" in j)) return true;  
+      if (!j || !("livestream" in j)) return true;
       return !!(j.livestream && j.livestream.is_live !== false);
     } catch (e) { return true; }
   };
@@ -97,16 +103,22 @@
     const titulo = document.title; let n = 0;
     const pisca = setInterval(() => { document.title = n++ % 2 ? titulo : "🔴 AO VIVO!"; if (n > 20) { clearInterval(pisca); document.title = titulo; } }, 1000);
   };
+  const chaveOff = "autochat-offline-" + canal;
+  const lerOff = () => { try { return sessionStorage.getItem(chaveOff) === "1"; } catch (e) { return false; } };
+  const gravarOff = v => { try { v ? sessionStorage.setItem(chaveOff, "1") : sessionStorage.removeItem(chaveOff); } catch (e) {} };
+  let checagensOff = 0;
   const ciclo = async () => {
     if (!(await estaAoVivo())) {
-      estavaAoVivo = false;
+      gravarOff(true);
+      checagensOff++;
+      if (checagensOff >= 5) { location.reload(); return; }
       log("Live offline, esperando começar...");
       proximo = Date.now() + 60000;
       timer = setTimeout(ciclo, 60000);
       return;
     }
-    if (estavaAoVivo === false) avisar(`${canal} abriu a live! Auto-chat ligado.`);
-    estavaAoVivo = true;
+    if (lerOff()) { gravarOff(false); avisar(`${canal} abriu a live! Auto-chat ligado.`); }
+    checagensOff = 0;
     enviar();
     agendar();
   };
