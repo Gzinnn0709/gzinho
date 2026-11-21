@@ -1,7 +1,17 @@
 # Kick auto-chat (pontos dos streamers)
 
-Manda uma mensagem de 5+ palavras no chat a cada 8 a 10 minutos **só com a live no ar**, nos canais
-da Kick que você ativar. Funciona no navegador do computador, com a aba da live aberta e você logado.
+Manda uma mensagem de 5+ palavras no chat **só com a live no ar**, nos canais da Kick que você ativar,
+no ritmo da regra de pontos de cada canal. Funciona no navegador do computador, com a aba da live aberta e você logado.
+
+## Regra de pontos de cada canal
+| Canal | Regra | Mensagem a cada | Pausa que não conta |
+|---|---|---|---|
+| gabepeixe | 1 Peixe 🐟 a cada 15 min escrevendo no chat | 8–10 min | mais de 15 min sem escrever |
+| brabox | 5 pontos a cada 10 min | 6–8 min | mais de 10 min sem escrever |
+| outros canais | 1 ponto a cada 15 min (padrão) | 8–10 min | mais de 15 min sem escrever |
+
+O intervalo fica sempre abaixo da janela, com folga para o modo lento do chat e tentativas que falham.
+Para mudar a regra de um canal, edite `REGRAS` no começo do script.
 
 ## Instalar (Tampermonkey — liga sozinho)
 1. Instale a extensão **Tampermonkey** no Chrome.
@@ -16,11 +26,10 @@ live: outro PC com uma versão antiga aberta na página manda mensagem até com 
 ## O painel
 - 🟢 **Ao vivo · próxima em X:XX** — contagem para a próxima mensagem. Offline: não manda nada.
 - **Hoje / Valendo / ≈ pts** — mensagens do dia, tempo de live que está valendo ponto e a estimativa
-  (no Gabe aparece 🐟). Regra dos Peixes: 1 a cada 15 min escrevendo no chat durante a live; uma pausa
-  de mais de 15 min não conta. Por isso o script escreve a cada 8–10 min e só conta o tempo até 15 min
-  depois da última mensagem.
-- **Última mensagem: há X min** — fica vermelho perto de 15 min sem escrever (ex.: modo lento do chat
-  ou você digitando no campo).
+  pela regra do canal (no Gabe aparece 🐟: 1 a cada 15 min; no Brabox: 5 a cada 10 min). O tempo só vale
+  até a janela da regra depois da última mensagem (15 min no Gabe, 10 min no Brabox).
+- **Última mensagem: há X min** — fica vermelho 3 min antes da janela (12 min no Gabe, 7 min no Brabox),
+  por exemplo com o modo lento do chat ou você digitando no campo.
 - **⏸ Pausar / ▶ Retomar** — para de mandar sem desligar (fica salvo mesmo recarregando a página).
 - **✉ Enviar agora**, **🌐 Auto/PT/ES** (idioma das frases; Auto escolhe pelo chat), **🔔 Avisos**
   (notificação quando a live abrir), **–** minimiza.

@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Kick auto-chat Gabepeixe
 // @namespace    gzinho
-// @version      3.1
-// @description  Manda uma mensagem a cada 8-10 min nos canais da Kick que você ativar, só com a live no ar
+// @version      3.2
+// @description  Manda uma mensagem a cada 6-10 min (regra de pontos de cada canal) nos canais da Kick que você ativar, só com a live no ar
 // @match        https://kick.com/*
 // @noframes
 // @grant        none
@@ -11,21 +11,26 @@
 // @downloadURL  https://github.com/Gzinnn0709/gzinho/raw/claude/gabepeixe-pontos-automatico-d2ra5w/kick-auto-chat/kick-auto-chat.user.js
 // ==/UserScript==
 
-// Kick auto-chat 3.0 — manda uma mensagem a cada 8–10 min nos canais escolhidos, só com a live no ar.
+// Kick auto-chat 3.2 — manda uma mensagem de 6 a 10 min (conforme a regra de pontos de cada canal), só com a live no ar.
 // Instale pelo Tampermonkey (arquivo kick-auto-chat.user.js). Também funciona colado no Console (F12).
 // No painel: pausar, mandar agora, idioma das frases, minimizar e desativar o canal.
 (() => {
   "use strict";
-  const VERSAO = "3.1";
+  const VERSAO = "3.2";
   const T = window.__autoChatTeste || {};            // só para os testes automáticos (acelera os tempos)
   const tempo = (padrao, chave) => (T[chave] ?? padrao);
 
   // ======================= CONFIGURAÇÃO =======================
   const CANAIS_PADRAO = ["gabepeixe", "brabox", "orenatovicente"];
-  const MINUTOS_BASE = 8, VARIACAO_MIN = 2;          // 8 a 10 minutos entre mensagens
-  // Regra dos pontos (Peixes do Gabe): 1 a cada 15 min escrevendo no chat durante a live;
-  // uma pausa de mais de 15 min não conta. O painel avisa antes de chegar nesse limite.
-  const LIMITE_PAUSA_MS = tempo(15 * 60000, "limiteMs"), ALERTA_PAUSA_MS = tempo(12 * 60000, "alertaMs");
+  // Regra de pontos de cada canal: X pontos a cada N minutos escrevendo no chat durante a live.
+  // Uma pausa maior que N minutos não conta, então o intervalo entre mensagens fica sempre abaixo de N
+  // (com folga para o modo lento do chat e tentativas que falham). O painel avisa antes de chegar no limite.
+  const REGRAS = {
+    gabepeixe: { pontos: 1, janela: 15, unidade: "🐟", intervalo: [8, 2] },   // 1 Peixe a cada 15 min: mensagem a cada 8–10 min
+    brabox: { pontos: 5, janela: 10, unidade: "pts", intervalo: [6, 2] }        // 5 pontos a cada 10 min: mensagem a cada 6–8 min
+  };
+  const REGRA_PADRAO = { pontos: 1, janela: 15, unidade: "pts", intervalo: [8, 2] };
+  const regraDe = (canal) => REGRAS[canal] || REGRA_PADRAO;
   // Frases com 5+ palavras. O script lê o clima do chat: rindo -> risada, triste -> triste, resto -> neutro
   const FRASES = {
     pt: {
@@ -196,6 +201,8 @@
 
   // ======================= UM CANAL =======================
   function iniciarCanal(canal) {
+    const regra = regraDe(canal);
+    const LIMITE_PAUSA_MS = tempo(regra.janela * 60000, "limiteMs"), ALERTA_PAUSA_MS = tempo((regra.janela - 3) * 60000, "alertaMs");
     let parado = false, timer = null, retry = null, tick = null, minuto = null, vigia = null;
     let proximo = 0, status = "carregando", checagensOff = 0, copiaFora = "", baseFora = null, semCampo = 0, aoVivoDesde = 0;
     const recentes = ler(`recentes:${canal}`, []);
@@ -246,13 +253,13 @@
       const e = estatHoje(canal);
       $(".ac-msgs").textContent = e.msgs || 0;
       $(".ac-min").textContent = `${Math.floor((e.minutos || 0) / 60)}h${String((e.minutos || 0) % 60).padStart(2, "0")}`;
-      $(".ac-pts").textContent = Math.floor((e.minutos || 0) / 15);
-      $(".ac-un").textContent = canal === "gabepeixe" ? "🐟" : "pts";
-      // tempo desde a última mensagem enviada: passar de 15 min com a live no ar perde o ponto
+      $(".ac-pts").textContent = Math.floor((e.minutos || 0) / regra.janela) * regra.pontos;
+      $(".ac-un").textContent = regra.unidade;
+      // tempo desde a última mensagem enviada: passar da janela da regra com a live no ar perde os pontos
       const ult = ler(`ultimo:${canal}`, 0);
       const risco = st === "aovivo" && Date.now() - Math.max(ult, aoVivoDesde) > ALERTA_PAUSA_MS;   // conta a partir do início da live
       const ultEl = $(".ac-ult");
-      ultEl.textContent = (ult ? `Última mensagem: há ${Math.floor((Date.now() - ult) / 60000)} min` : "Última mensagem: —") + (risco ? " ⚠ perto de 15 min sem escrever (a pausa não conta)" : "");
+      ultEl.textContent = (ult ? `Última mensagem: há ${Math.floor((Date.now() - ult) / 60000)} min` : "Última mensagem: —") + (risco ? ` ⚠ perto de ${regra.janela} min sem escrever (a pausa não conta)` : "");
       ultEl.classList.toggle("risco", risco);
       $('[data-a="pausa"]').textContent = pausado() ? "▶ Retomar" : "⏸ Pausar";
       const id = idiomaEscolhido();
@@ -339,7 +346,7 @@
       if (status !== "aovivo") aoVivoDesde = Date.now();
       status = "aovivo"; checagensOff = 0;
       enviar();
-      agendar(tempo((MINUTOS_BASE + Math.random() * VARIACAO_MIN) * 60000, "intervaloMs"));
+      agendar(tempo((regra.intervalo[0] + Math.random() * regra.intervalo[1]) * 60000, "intervaloMs"));
     };
 
     // ---------- cópia antiga fora desta aba: percebe pelo chat ----------
@@ -374,7 +381,7 @@
       painel.remove();
     };
     tick = setInterval(atualizarPainel, 1000);
-    // minutos com a live no ar e o script ligado (para estimar os pontos do dia: 1 a cada 15 min)
+    // minutos com a live no ar e o script ligado (para estimar os pontos do dia pela regra do canal)
     minuto = setInterval(() => {
       const ult = ler(`ultimo:${canal}`, 0);
       if (!parado && status === "aovivo" && !pausado() && slugAtual() === canal && ult && Date.now() - ult <= LIMITE_PAUSA_MS) { somarHoje(canal, "minutos"); atualizarPainel(); }
