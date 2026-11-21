@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kick auto-chat Gabepeixe
 // @namespace    gzinho
-// @version      3.2
+// @version      3.3
 // @description  Manda uma mensagem a cada 6-10 min (regra de pontos de cada canal) nos canais da Kick que você ativar, só com a live no ar
 // @match        https://kick.com/*
 // @noframes
@@ -16,7 +16,7 @@
 // No painel: pausar, mandar agora, idioma das frases, minimizar e desativar o canal.
 (() => {
   "use strict";
-  const VERSAO = "3.2";
+  const VERSAO = "3.3";
   const T = window.__autoChatTeste || {};            // só para os testes automáticos (acelera os tempos)
   const tempo = (padrao, chave) => (T[chave] ?? padrao);
 
@@ -187,6 +187,7 @@
     #autochat .ac-ult{color:#a7b0c0}
     #autochat .ac-ult.risco{color:#ff6b6b;font-weight:600}
     #autochat .ac-alerta{color:#ff6b6b;font-weight:600;margin:6px 0}
+    #autochat .ac-alerta .ac-x{float:right;margin:0 0 4px 6px;background:none;border:0;color:inherit;font:inherit;cursor:pointer;padding:0 4px}
     #autochat [hidden]{display:none !important}
     #autochat .ac-bts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
     #autochat.min{width:auto;border-radius:999px;cursor:pointer}
@@ -205,6 +206,11 @@
     const LIMITE_PAUSA_MS = tempo(regra.janela * 60000, "limiteMs"), ALERTA_PAUSA_MS = tempo((regra.janela - 3) * 60000, "alertaMs");
     let parado = false, timer = null, retry = null, tick = null, minuto = null, vigia = null;
     let proximo = 0, status = "carregando", checagensOff = 0, copiaFora = "", baseFora = null, semCampo = 0, aoVivoDesde = 0;
+    // O Chrome (Economia de memória) "dorme" abas paradas: enquanto isso o script não roda e perde pontos.
+    // Quando a aba volta, document.wasDiscarded é true; o pulso de cada minuto diz quanto tempo ficou parada.
+    const pulsoAnterior = ler(`pulso:${canal}`, 0);
+    const descartada = T.descartada ?? !!document.wasDiscarded;
+    const minParada = pulsoAnterior ? Math.round((Date.now() - pulsoAnterior) / 60000) : 0;
     const recentes = ler(`recentes:${canal}`, []);
     const pausado = () => ler(`pausado:${canal}`, false);
     const idiomaEscolhido = () => ler(`idioma:${canal}`, "auto");
@@ -223,6 +229,7 @@
         <div class="ac-alerta" data-al="antiga" hidden></div>
         <div class="ac-alerta" data-al="fora" hidden></div>
         <div class="ac-alerta" data-al="campo" hidden>⚠ Não achei o campo do chat: confira se você está logado na Kick e com o chat aberto.</div>
+        <div class="ac-alerta" data-al="descartada" hidden></div>
         <div class="ac-bts">
           <button type="button" data-a="pausa"></button>
           <button type="button" data-a="agora">✉ Enviar agora</button>
@@ -234,6 +241,13 @@
     const $ = (s) => painel.querySelector(s);
     $(".ac-canal").textContent = canal;
     $(".ac-ver").textContent = "v" + VERSAO;
+    if (descartada) {
+      const al = $('[data-al="descartada"]');
+      const quanto = minParada >= 2 && minParada <= 720 ? ` (ficou ${minParada} min parada)` : "";
+      al.innerHTML = `<button type="button" class="ac-x" data-a="fecharDesc" title="Fechar">✕</button>⚠ O Chrome tinha "dormido" esta aba para economizar memória${quanto}: nesse tempo não sai mensagem e perde pontos. Para evitar: Chrome → Configurações → Desempenho → Sempre manter estes sites ativos → Adicionar → kick.com`;
+      al.hidden = false;
+      console.warn(`[auto-chat] o Chrome tinha descartado esta aba${quanto}.`);
+    }
     $('[data-al="antiga"]').textContent = `⚠ Tem uma versão ANTIGA do auto-chat nesta página (ela manda mensagem até com a live offline; eu bloqueio quando consigo). Apague-a no Tampermonkey → Painel de opções e deixe só a ${VERSAO}.`;
     document.body.appendChild(painel);
     if (ler("minimizado", false)) painel.classList.add("min");
@@ -372,6 +386,7 @@
       if (a === "idioma") { const ordem = ["auto", "pt", "es"]; gravar(`idioma:${canal}`, ordem[(ordem.indexOf(idiomaEscolhido()) + 1) % 3]); }
       if (a === "avisos" && window.Notification) Notification.requestPermission().then(atualizarPainel);
       if (a === "desativar") { gravar("canais", canaisAtivos().filter(c => c !== canal)); rotear(true); return; }
+      if (a === "fecharDesc") { $('[data-al="descartada"]').hidden = true; return; }
       atualizarPainel();
     });
 
@@ -382,7 +397,9 @@
     };
     tick = setInterval(atualizarPainel, 1000);
     // minutos com a live no ar e o script ligado (para estimar os pontos do dia pela regra do canal)
+    gravar(`pulso:${canal}`, Date.now());
     minuto = setInterval(() => {
+      if (!parado) gravar(`pulso:${canal}`, Date.now());   // "estou rodando" (para medir quanto tempo a aba ficou parada)
       const ult = ler(`ultimo:${canal}`, 0);
       if (!parado && status === "aovivo" && !pausado() && slugAtual() === canal && ult && Date.now() - ult <= LIMITE_PAUSA_MS) { somarHoje(canal, "minutos"); atualizarPainel(); }
     }, tempo(60000, "minutoMs"));

@@ -44,7 +44,17 @@ o script para e não manda mensagem no canal errado.
 Português ou espanhol, com 5+ palavras, de acordo com o clima do chat (rindo, triste ou normal), sem
 repetir as últimas 6 e às vezes com um emoji no fim.
 
+## Para não perder pontos
+- **Chrome "dormindo" a aba (Economia de memória):** o Chrome descarta abas paradas (janela minimizada, aba
+  sem som) e, enquanto isso, o script não roda. Quando você volta na aba, parece que a página atualizou.
+  Resolva em **Chrome → Configurações → Desempenho → Sempre manter estes sites ativos → Adicionar → `kick.com`**.
+  Desde a 3.3 o painel avisa quando isso aconteceu e quanto tempo a aba ficou parada.
+- **PC em suspensão:** desligue a suspensão durante a live (Windows: Configurações → Sistema → Energia).
+- **Abra as abas antes da live:** o script espera com a live offline e começa sozinho quando ela abrir.
+- O script só recarrega a página com a live **offline** (a cada ~5 min); com a live no ar ele nunca recarrega.
+
 ## Avisos em vermelho
+- **O Chrome tinha "dormido" esta aba**: veja "Para não perder pontos" acima.
 - **Versão ANTIGA nesta página**: apague as outras cópias no Tampermonkey.
 - **Cópia antiga em outra aba/navegador**: no Chrome, Ctrl+Shift+A, digite `kick` e feche as outras abas.
 - **Não achei o campo do chat**: confira se está logado e com o chat aberto.
