@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Kick auto-chat Gabepeixe
 // @namespace    gzinho
-// @version      3.3
-// @description  Manda uma mensagem a cada 6-10 min (regra de pontos de cada canal) nos canais da Kick que você ativar, só com a live no ar
+// @version      3.4
+// @description  Manda uma mensagem a cada 6-10 min (regra de pontos de cada canal) nos canais da Kick que você ativar, só com a live no ar, e confere se ela apareceu no chat
 // @match        https://kick.com/*
 // @noframes
 // @grant        none
@@ -11,12 +11,13 @@
 // @downloadURL  https://github.com/Gzinnn0709/gzinho/raw/claude/gabepeixe-pontos-automatico-d2ra5w/kick-auto-chat/kick-auto-chat.user.js
 // ==/UserScript==
 
-// Kick auto-chat 3.2 — manda uma mensagem de 6 a 10 min (conforme a regra de pontos de cada canal), só com a live no ar.
+// Kick auto-chat 3.4 — manda uma mensagem de 6 a 10 min (conforme a regra de pontos de cada canal), só com a live no ar,
+// confere se ela apareceu no chat e, se não apareceu, manda outra antes de fechar a janela de pontos.
 // Instale pelo Tampermonkey (arquivo kick-auto-chat.user.js). Também funciona colado no Console (F12).
 // No painel: pausar, mandar agora, idioma das frases, minimizar e desativar o canal.
 (() => {
   "use strict";
-  const VERSAO = "3.3";
+  const VERSAO = "3.4";
   const T = window.__autoChatTeste || {};            // só para os testes automáticos (acelera os tempos)
   const tempo = (padrao, chave) => (T[chave] ?? padrao);
 
@@ -81,7 +82,17 @@
   const canaisAtivos = () => ler("canais", CANAIS_PADRAO);
   const hoje = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
   const estatHoje = (canal) => ler(`dia:${canal}:${hoje()}`, { msgs: 0, minutos: 0 });
-  const somarHoje = (canal, campo) => { const e = estatHoje(canal); e[campo] = (e[campo] || 0) + 1; gravar(`dia:${canal}:${hoje()}`, e); };
+  const somarHoje = (canal, campo, n = 1) => { const e = estatHoje(canal); e[campo] = (e[campo] || 0) + n; gravar(`dia:${canal}:${hoje()}`, e); };
+  const hhmm = (t) => { const d = new Date(t); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+  // Ocorrências do dia: o que fez perder (ou quase perder) pontos, para mostrar no painel
+  const ocorrHoje = (canal) => ler(`ocorr:${canal}:${hoje()}`, []);
+  const registrar = (canal, texto) => {
+    const l = ocorrHoje(canal);
+    l.push({ h: hhmm(Date.now()), t: texto });
+    while (l.length > 30) l.shift();
+    gravar(`ocorr:${canal}:${hoje()}`, l);
+    console.warn(`[auto-chat ${canal}] ${texto}`);
+  };
 
   // ======================= PÁGINA DA KICK =======================
   const slugAtual = () => (location.pathname.split("/")[1] || "").toLowerCase();
@@ -96,11 +107,29 @@
     document.querySelector('[data-testid="send-message-button"]') ||
     [...document.querySelectorAll("button")].find(b => /^(chat|enviar|send|bate-papo)$/i.test(b.textContent.trim()) && b.offsetParent);
   // texto das últimas mensagens do chat (sobe a partir do campo de digitar até achar a lista)
-  const textoDoChat = () => {
-    let el = acharInput(), txt = "";
-    for (let i = 0; el && i < 15 && el.parentElement; i++) { el = el.parentElement; txt = el.innerText || ""; if (txt.length > 800) break; }
-    return txt;
+  const subirAteOChat = () => {
+    let el = acharInput();
+    for (let i = 0; el && i < 15 && el.parentElement; i++) { el = el.parentElement; if ((el.innerText || "").length > 800) break; }
+    return el === acharInput() ? null : el;
   };
+  const textoDoChat = () => { const el = subirAteOChat(); return el ? el.innerText || "" : ""; };
+  // Para conferir se a mensagem saiu: a lista de mensagens (ids conhecidos da Kick ou subindo a partir do campo),
+  // sem o painel do auto-chat (ele mostra a frase enviada) e sem o campo de digitar
+  const containerDoChat = () =>
+    document.querySelector('#chatroom-messages, #chat-messages, [data-testid="chat-messages"], [data-testid="chatroom-messages"]') || subirAteOChat();
+  const textoSemPainel = (raiz) => {
+    if (!raiz) return "";
+    const pular = (el) => !el || !!el.closest("head, #autochat, #autochat-pilula, [contenteditable='true'], script, style");
+    const w = document.createTreeWalker(raiz, NodeFilter.SHOW_TEXT, { acceptNode: (n) => (pular(n.parentElement) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT) });
+    const partes = [];
+    for (let n = w.nextNode(); n; n = w.nextNode()) partes.push(n.nodeValue);
+    return partes.join("\n");
+  };
+  // texto corrido (a Kick pode quebrar a mensagem em pedaços: nome, emoji, link...)
+  const contarNoChat = (frase) => textoSemPainel(containerDoChat()).replace(/\n/g, "").split(frase).length - 1;
+  const assinaturaDoChat = () => { const t = textoSemPainel(containerDoChat()); return t.length + "|" + t.slice(-300); };
+  // Live no mudo: aba sem som o Chrome pode congelar ou descartar em segundo plano
+  const videoMudo = () => { const v = document.querySelector("video"); return !!v && (v.muted || v.volume === 0); };
   // Faixa "OFFLINE" + "está off-line" na página do canal
   const offlineNaTela = () => {
     const folhas = [...document.querySelectorAll("span, div, p, h1, h2, h3")].filter(e => e.childElementCount === 0 && e.offsetParent);
@@ -181,13 +210,18 @@
     #autochat .ac-ico{width:26px;height:26px;padding:0;display:grid;place-items:center}
     #autochat .ac-corpo{padding:0 12px 10px}
     #autochat .ac-st{font-weight:600}
-    #autochat .ac-num{display:flex;gap:12px;color:#a7b0c0;margin:4px 0}
+    #autochat .ac-num{display:flex;flex-wrap:wrap;gap:2px 12px;color:#a7b0c0;margin:4px 0}
+    #autochat .ac-num > span{white-space:nowrap}
     #autochat .ac-num b{color:#e7f5e4;font-variant-numeric:tabular-nums}
     #autochat .ac-log{color:#a7b0c0;margin:4px 0;min-height:18px;word-break:break-word}
     #autochat .ac-ult{color:#a7b0c0}
     #autochat .ac-ult.risco{color:#ff6b6b;font-weight:600}
     #autochat .ac-alerta{color:#ff6b6b;font-weight:600;margin:6px 0}
     #autochat .ac-alerta .ac-x{float:right;margin:0 0 4px 6px;background:none;border:0;color:inherit;font:inherit;cursor:pointer;padding:0 4px}
+    #autochat .ac-oc{margin:4px 0;color:#a7b0c0}
+    #autochat .ac-oc summary{cursor:pointer;color:#fbbf24}
+    #autochat .ac-oc ol{margin:4px 0 0;padding-left:18px;max-height:130px;overflow:auto}
+    #autochat .ac-oc li{margin:2px 0}
     #autochat [hidden]{display:none !important}
     #autochat .ac-bts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
     #autochat.min{width:auto;border-radius:999px;cursor:pointer}
@@ -204,8 +238,12 @@
   function iniciarCanal(canal) {
     const regra = regraDe(canal);
     const LIMITE_PAUSA_MS = tempo(regra.janela * 60000, "limiteMs"), ALERTA_PAUSA_MS = tempo((regra.janela - 3) * 60000, "alertaMs");
-    let parado = false, timer = null, retry = null, tick = null, minuto = null, vigia = null;
+    // Prazo: a próxima mensagem sai no máximo 2,5 min antes de completar a janela desde a última que APARECEU no chat
+    // (folga para o Chrome atrasar o relógio de abas em segundo plano e para uma tentativa extra)
+    const MARGEM_MS = tempo(150000, "margemMs");
+    let parado = false, timer = null, tick = null, minuto = null, vigia = null;
     let proximo = 0, status = "carregando", checagensOff = 0, copiaFora = "", baseFora = null, semCampo = 0, aoVivoDesde = 0;
+    let enviando = false, falhasSeguidas = 0, conferiuAlguma = false, pendente = null, ultimoTexto = "", pulsoLocal = Date.now();
     // O Chrome (Economia de memória) "dorme" abas paradas: enquanto isso o script não roda e perde pontos.
     // Quando a aba volta, document.wasDiscarded é true; o pulso de cada minuto diz quanto tempo ficou parada.
     const pulsoAnterior = ler(`pulso:${canal}`, 0);
@@ -223,13 +261,15 @@
         <button type="button" class="ac-ico" data-a="min" title="Minimizar">–</button></div>
       <div class="ac-corpo">
         <div class="ac-st"></div>
-        <div class="ac-num"><span>Hoje: <b class="ac-msgs">0</b> msg</span><span>Valendo: <b class="ac-min">0h00</b></span><span>≈ <b class="ac-pts">0</b> <span class="ac-un">pts</span></span></div>
+        <div class="ac-num"><span>Hoje: <b class="ac-msgs">0</b> msg</span><span>Valendo: <b class="ac-min">0h00</b></span><span>≈ <b class="ac-pts">0</b><span class="ac-poss"></span> <span class="ac-un">pts</span></span></div>
         <div class="ac-ult"></div>
         <div class="ac-log"></div>
         <div class="ac-alerta" data-al="antiga" hidden></div>
         <div class="ac-alerta" data-al="fora" hidden></div>
         <div class="ac-alerta" data-al="campo" hidden>⚠ Não achei o campo do chat: confira se você está logado na Kick e com o chat aberto.</div>
         <div class="ac-alerta" data-al="descartada" hidden></div>
+        <div class="ac-alerta" data-al="mudo" hidden><button type="button" class="ac-x" data-a="fecharMudo" title="Não avisar de novo">✕</button>🔇 A live está no mudo: em segundo plano o Chrome pode congelar a aba e você perde pontos. Deixe o volume baixinho (1%) em vez do mudo.</div>
+        <details class="ac-oc" hidden><summary>⚠ Ocorrências hoje: <b class="ac-noc">0</b></summary><ol class="ac-loc"></ol></details>
         <div class="ac-bts">
           <button type="button" data-a="pausa"></button>
           <button type="button" data-a="agora">✉ Enviar agora</button>
@@ -246,7 +286,7 @@
       const quanto = minParada >= 2 && minParada <= 720 ? ` (ficou ${minParada} min parada)` : "";
       al.innerHTML = `<button type="button" class="ac-x" data-a="fecharDesc" title="Fechar">✕</button>⚠ O Chrome tinha "dormido" esta aba para economizar memória${quanto}: nesse tempo não sai mensagem e perde pontos. Para evitar: Chrome → Configurações → Desempenho → Sempre manter estes sites ativos → Adicionar → kick.com`;
       al.hidden = false;
-      console.warn(`[auto-chat] o Chrome tinha descartado esta aba${quanto}.`);
+      registrar(canal, `o Chrome "dormiu" a aba${quanto} (Economia de memória)`);
     }
     $('[data-al="antiga"]').textContent = `⚠ Tem uma versão ANTIGA do auto-chat nesta página (ela manda mensagem até com a live offline; eu bloqueio quando consigo). Apague-a no Tampermonkey → Painel de opções e deixe só a ${VERSAO}.`;
     document.body.appendChild(painel);
@@ -261,13 +301,16 @@
       if (parado) return;
       const st = pausado() ? "pausado" : status;
       painel.dataset.st = st;
-      const textos = { carregando: "Conferindo se a live está no ar…", aovivo: `🔴 Ao vivo · próxima em ${relogio()}`, offline: `Live offline · confere de novo em ${relogio()}`, pausado: "⏸ Pausado (não manda nada)" };
+      const textos = { carregando: "Conferindo se a live está no ar…", aovivo: enviando ? "🔴 Ao vivo · conferindo se a mensagem apareceu no chat…" : `🔴 Ao vivo · próxima em ${relogio()}`, offline: `Live offline · confere de novo em ${relogio()}`, pausado: "⏸ Pausado (não manda nada)" };
       $(".ac-st").textContent = textos[st] || st;
       $(".ac-mini").textContent = st === "pausado" ? "⏸" : st === "aovivo" ? relogio() : "off";
       const e = estatHoje(canal);
       $(".ac-msgs").textContent = e.msgs || 0;
       $(".ac-min").textContent = `${Math.floor((e.minutos || 0) / 60)}h${String((e.minutos || 0) % 60).padStart(2, "0")}`;
-      $(".ac-pts").textContent = Math.floor((e.minutos || 0) / regra.janela) * regra.pontos;
+      const pts = Math.floor((e.minutos || 0) / regra.janela) * regra.pontos;
+      const possiveis = Math.floor(((e.aoVivo || 0) + (e.parado || 0)) / regra.janela) * regra.pontos;   // se nada tivesse falhado
+      $(".ac-pts").textContent = pts;
+      $(".ac-poss").textContent = possiveis > pts ? ` de ${possiveis}` : "";
       $(".ac-un").textContent = regra.unidade;
       // tempo desde a última mensagem enviada: passar da janela da regra com a live no ar perde os pontos
       const ult = ler(`ultimo:${canal}`, 0);
@@ -283,6 +326,16 @@
       if (copiaFora) { fora.hidden = false; fora.textContent = `⚠ Uma cópia ANTIGA do auto-chat mandou "${copiaFora}" de OUTRA aba, navegador ou aparelho (não foi esta). No Chrome: Ctrl+Shift+A, digite "kick" e feche as outras abas da Kick.`; }
       $('[data-al="campo"]').hidden = semCampo < 3;
       $('[data-a="avisos"]').hidden = !window.Notification || Notification.permission === "granted";
+      $('[data-al="mudo"]').hidden = !(st === "aovivo" && videoMudo() && !ler("mudoOk", false));
+      const oc = ocorrHoje(canal), det = $(".ac-oc");
+      det.hidden = !oc.length;
+      $(".ac-noc").textContent = oc.length;
+      const chave = oc.length ? oc.length + oc[oc.length - 1].h + oc[oc.length - 1].t : "";
+      if (det.dataset.k !== chave) {
+        det.dataset.k = chave;
+        const ol = $(".ac-loc"); ol.textContent = "";
+        oc.slice(-8).reverse().forEach(o => { const li = document.createElement("li"); li.textContent = `${o.h} — ${o.t}`; ol.appendChild(li); });
+      }
     };
 
     // ---------- escolher e enviar a frase ----------
@@ -294,45 +347,119 @@
       recentes.push(f); while (recentes.length > 6) recentes.shift();
       gravar(`recentes:${canal}`, recentes);
       const emoji = Math.random() < 0.3 ? " " + EMOJIS[clima][Math.floor(Math.random() * EMOJIS[clima].length)] : "";
-      return f + emoji;
+      return { frase: f, msg: f + emoji };
     };
-    const tentarDepois = (ms) => {
-      clearTimeout(retry);
-      retry = setTimeout(async () => { if (!parado && !pausado() && await estaAoVivo(canal) && !parado) enviar(); }, ms);
+    const esperar = (ms) => new Promise(r => setTimeout(r, ms));
+    const ultimoOk = () => Math.max(ler(`ultimo:${canal}`, 0), aoVivoDesde);
+    // frase nossa que ficou no campo (a Kick não aceitou): pode limpar, não é você digitando
+    const ehNosso = (t) => !!t && (t === ultimoTexto || [...TODAS_FRASES].some(f => t === f || t.startsWith(f + " ")));
+    const limparCampo = () => {
+      const inp = acharInput(); if (!inp) return;
+      inp.focus(); document.execCommand("selectAll", false, null); document.execCommand("delete", false, null);
     };
-    const enviar = () => {
-      if (parado) return false;
-      if (slugAtual() !== canal) { log("Você saiu deste canal: não mandei nada."); return false; }   // trocou de canal na mesma aba
-      const input = acharInput();
-      if (!input) { semCampo++; log("Não achei o campo do chat."); return false; }
-      semCampo = 0;
-      if ((input.textContent || "").trim()) { log("Você está digitando: tento de novo em 30s"); tentarDepois(tempo(30000, "digitandoMs")); return false; }
-      const txt = textoDoChat();
-      let clima = "neutro", idioma = idiomaEscolhido();
-      try { clima = climaDoChat(txt); } catch (e) {}
-      if (idioma === "auto") { try { idioma = idiomaDoChat(txt); } catch (e) { idioma = "pt"; } }
-      const msg = escolherFrase(clima, idioma);
-      input.focus();
-      document.execCommand("selectAll", false, null);
-      document.execCommand("insertText", false, msg);
-      const vazio = () => !(acharInput()?.textContent || "").trim();
-      const apertarEnter = el => ["keydown", "keypress", "keyup"].forEach(t =>
-        el.dispatchEvent(new KeyboardEvent(t, { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true, cancelable: true })));
-      const tentativas = [
-        () => apertarEnter(input),
-        () => { const b = acharBotao(); if (b) b.click(); },
-        () => { const b = acharBotao(); if (b) ["pointerdown", "mousedown", "pointerup", "mouseup", "click"].forEach(t => b.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }))); },
-        () => { input.closest("form")?.requestSubmit?.(); }
-      ];
-      const tentar = (i) => {
-        if (parado) return;
-        if (vazio()) { somarHoje(canal, "msgs"); gravar(`ultimo:${canal}`, Date.now()); log(`Enviado [${idioma} · ${clima}]: "${msg}"`); atualizarPainel(); return; }
-        if (i >= tentativas.length) { log("Não consegui enviar (modo lento?): tento de novo em 60s"); tentarDepois(tempo(60000, "falhaMs")); return; }
-        try { tentativas[i](); } catch (e) {}
-        setTimeout(() => tentar(i + 1), tempo(2500, "tentativaMs"));
-      };
-      setTimeout(() => tentar(0), tempo(400, "digitarMs"));
+    // Recarrega a página quando o chat trava (campo sumiu ou mensagens seguidas não aparecem). No máximo 1 vez a cada 15 min.
+    const recarregar = (motivo) => {
+      if (Date.now() - ler(`recarga:${canal}`, 0) < tempo(15 * 60000, "recargaGuardaMs")) { log(`⚠ ${motivo} (já recarreguei há pouco)`); return false; }
+      const t = (acharInput()?.textContent || "").trim();
+      if (t && !ehNosso(t)) return false;                 // você está digitando: não recarrega
+      gravar(`recarga:${canal}`, Date.now());
+      registrar(canal, `recarreguei a página: ${motivo}`);
+      if (T.semRecarregar) { window.__autoChatRecarregou = motivo; return true; }
+      location.reload();
       return true;
+    };
+    const deuCerto = (msg, idioma, clima, conferida) => {
+      somarHoje(canal, "msgs"); gravar(`ultimo:${canal}`, Date.now());
+      falhasSeguidas = 0; pendente = null;
+      if (conferida) conferiuAlguma = true;
+      log(`${conferida ? "✓ Apareceu no chat" : "Enviado (não deu para conferir no chat)"} [${idioma} · ${clima}]: "${msg}"`);
+      atualizarPainel();
+    };
+    const deuErrado = (motivo) => {
+      falhasSeguidas++;
+      somarHoje(canal, "falhas");
+      registrar(canal, motivo);
+      const espera = falhasSeguidas >= 3 ? tempo(120000, "retryLongoMs") : tempo(40000, "retryMs");
+      log(`⚠ ${motivo}: mando outra em ${Math.round(espera / 1000)}s`);
+      if (falhasSeguidas >= 3) recarregar(`${falhasSeguidas} tentativas seguidas sem a mensagem aparecer`);
+      return espera;
+    };
+    // Escreve a frase, aperta Enter (ou o botão) e confere se ela apareceu na lista do chat.
+    // Devolve { r: "ok" | "semconferir" | "falhou" | "digitando" | "semcampo" | "fora" | "ocupado" | "parado", espera }
+    const enviar = async () => {
+      if (parado || enviando) return { r: "ocupado" };
+      if (slugAtual() !== canal) { log("Você saiu deste canal: não mandei nada."); return { r: "fora" }; }   // trocou de canal na mesma aba
+      // a de antes, que não tinha aparecido, apareceu atrasada? então valeu
+      if (pendente && contarNoChat(pendente.frase) > pendente.antes) { const p = pendente; deuCerto(p.msg, p.idioma, p.clima, true); return { r: "ok" }; }
+      const input = acharInput();
+      if (!input) {
+        semCampo++; log("Não achei o campo do chat.");
+        if (semCampo >= 3) recarregar("o campo do chat sumiu");
+        return { r: "semcampo", espera: tempo(40000, "retryMs") };
+      }
+      semCampo = 0;
+      const noCampo = (input.textContent || "").trim();
+      if (noCampo) {
+        if (!ehNosso(noCampo)) { log("Você está digitando: tento de novo em 30s"); return { r: "digitando", espera: tempo(30000, "digitandoMs") }; }
+        limparCampo();                                      // sobrou uma frase nossa que não saiu
+      }
+      enviando = true;
+      try {
+        const txt = textoDoChat();
+        let clima = "neutro", idioma = idiomaEscolhido();
+        try { clima = climaDoChat(txt); } catch (e) {}
+        if (idioma === "auto") { try { idioma = idiomaDoChat(txt); } catch (e) { idioma = "pt"; } }
+        const { frase, msg } = escolherFrase(clima, idioma);
+        ultimoTexto = msg;
+        const antes = contarNoChat(frase), chatAntes = assinaturaDoChat();
+        const campo = acharInput() || input;
+        campo.focus();
+        document.execCommand("selectAll", false, null);
+        document.execCommand("insertText", false, msg);
+        const vazio = () => !(acharInput()?.textContent || "").trim();
+        const apertarEnter = el => ["keydown", "keypress", "keyup"].forEach(t =>
+          el.dispatchEvent(new KeyboardEvent(t, { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true, cancelable: true })));
+        const tentativas = [
+          () => apertarEnter(acharInput() || campo),
+          () => { const b = acharBotao(); if (b) b.click(); },
+          () => { const b = acharBotao(); if (b) ["pointerdown", "mousedown", "pointerup", "mouseup", "click"].forEach(t => b.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }))); },
+          () => { (acharInput() || campo).closest("form")?.requestSubmit?.(); }
+        ];
+        await esperar(tempo(400, "digitarMs"));
+        for (let i = 0; i < tentativas.length && !vazio() && !parado; i++) {
+          try { tentativas[i](); } catch (e) {}
+          await esperar(tempo(2500, "tentativaMs"));
+        }
+        if (parado) return { r: "parado" };
+        if (!vazio()) {
+          limparCampo();                                    // não deixa a frase parada no campo
+          return { r: "falhou", espera: deuErrado("a Kick não aceitou a mensagem (modo lento, chat restrito ou sem conexão?)") };
+        }
+        // saiu do campo: espera aparecer na lista do chat
+        const ate = Date.now() + tempo(12000, "confirmarMs");
+        do {
+          if (contarNoChat(frase) > antes) { deuCerto(msg, idioma, clima, true); return { r: "ok" }; }
+          await esperar(tempo(500, "conferirPassoMs"));
+        } while (Date.now() < ate && !parado);
+        if (parado) return { r: "parado" };
+        // Não apareceu. Se dá para conferir nesta página (já apareceu outra antes, ou o chat está andando), foi falha mesmo.
+        if (conferiuAlguma || assinaturaDoChat() !== chatAntes) {
+          pendente = { frase, msg, idioma, clima, antes };    // se aparecer atrasada, ainda conta
+          return { r: "falhou", espera: deuErrado("a mensagem não apareceu no chat") };
+        }
+        deuCerto(msg, idioma, clima, false);                // chat parado ou diferente: conta como enviada (o campo esvaziou)
+        return { r: "semconferir" };
+      } finally { enviando = false; }
+    };
+    // Próxima mensagem: sorteio do intervalo do canal, mas nunca depois do prazo
+    const proximaNormal = () => {
+      const sorteio = tempo((regra.intervalo[0] + Math.random() * regra.intervalo[1]) * 60000, "intervaloMs");
+      const prazo = ultimoOk() + LIMITE_PAUSA_MS - MARGEM_MS - Date.now();
+      return prazo < sorteio ? Math.max(tempo(20000, "minimoMs"), prazo) : sorteio;
+    };
+    const depoisDeEnviar = (res) => {
+      if (parado || !res || ["ocupado", "parado", "fora"].includes(res.r)) return;
+      agendar(res.r === "ok" || res.r === "semconferir" ? proximaNormal() : res.espera || tempo(40000, "retryMs"));
     };
 
     // ---------- ciclo: live no ar? manda e agenda a próxima ----------
@@ -359,8 +486,8 @@
       if (ler(chaveOff, false)) { gravar(chaveOff, false); avisar(`${canal} abriu a live! Auto-chat ligado.`); }
       if (status !== "aovivo") aoVivoDesde = Date.now();
       status = "aovivo"; checagensOff = 0;
-      enviar();
-      agendar(tempo((regra.intervalo[0] + Math.random() * regra.intervalo[1]) * 60000, "intervaloMs"));
+      agendar(tempo(60000, "seguroMs"));             // se o envio travar, o ciclo volta sozinho
+      depoisDeEnviar(await enviar());
     };
 
     // ---------- cópia antiga fora desta aba: percebe pelo chat ----------
@@ -382,26 +509,47 @@
       e.stopPropagation();
       if (a === "min") { const m = !painel.classList.contains("min"); painel.classList.toggle("min", m); gravar("minimizado", m); }
       if (a === "pausa") { gravar(`pausado:${canal}`, !pausado()); log(pausado() ? "Pausado: não vai mandar nada até você retomar." : "Retomado."); if (!pausado()) agendar(500); }
-      if (a === "agora") enviar();
+      if (a === "agora") enviar().then(depoisDeEnviar);
       if (a === "idioma") { const ordem = ["auto", "pt", "es"]; gravar(`idioma:${canal}`, ordem[(ordem.indexOf(idiomaEscolhido()) + 1) % 3]); }
       if (a === "avisos" && window.Notification) Notification.requestPermission().then(atualizarPainel);
       if (a === "desativar") { gravar("canais", canaisAtivos().filter(c => c !== canal)); rotear(true); return; }
       if (a === "fecharDesc") { $('[data-al="descartada"]').hidden = true; return; }
+      if (a === "fecharMudo") gravar("mudoOk", true);
       atualizarPainel();
     });
 
+    // voltou de segundo plano / de congelada: se já passou da hora, manda agora
+    const aoVoltar = () => { if (!parado && status === "aovivo" && !enviando && Date.now() > proximo) agendar(0); };
+    document.addEventListener("visibilitychange", aoVoltar);
+    document.addEventListener("resume", aoVoltar);
     const encerrar = () => {
       parado = true;
-      clearTimeout(timer); clearTimeout(retry); clearInterval(tick); clearInterval(minuto); clearInterval(vigia);
+      clearTimeout(timer); clearInterval(tick); clearInterval(minuto); clearInterval(vigia);
+      document.removeEventListener("visibilitychange", aoVoltar);
+      document.removeEventListener("resume", aoVoltar);
       painel.remove();
     };
     tick = setInterval(atualizarPainel, 1000);
     // minutos com a live no ar e o script ligado (para estimar os pontos do dia pela regra do canal)
     gravar(`pulso:${canal}`, Date.now());
     minuto = setInterval(() => {
-      if (!parado) gravar(`pulso:${canal}`, Date.now());   // "estou rodando" (para medir quanto tempo a aba ficou parada)
-      const ult = ler(`ultimo:${canal}`, 0);
-      if (!parado && status === "aovivo" && !pausado() && slugAtual() === canal && ult && Date.now() - ult <= LIMITE_PAUSA_MS) { somarHoje(canal, "minutos"); atualizarPainel(); }
+      if (parado) return;
+      const agora = Date.now(), lacuna = agora - pulsoLocal;
+      pulsoLocal = agora;
+      gravar(`pulso:${canal}`, agora);                  // "estou rodando" (para medir quanto tempo a aba ficou parada)
+      // o minuto atrasou muito: o Chrome congelou a aba ou o computador suspendeu (nesse tempo nada roda)
+      if (lacuna > tempo(3 * 60000, "lacunaMs") && status === "aovivo") {
+        const min = Math.round(lacuna / 60000);
+        registrar(canal, `a aba ficou parada ${min} min (${hhmm(agora - lacuna)}–${hhmm(agora)}): Chrome congelou a aba ou o computador suspendeu`);
+        somarHoje(canal, "parado", min);
+      }
+      if (status === "aovivo" && !pausado() && slugAtual() === canal) {
+        somarHoje(canal, "aoVivo");                       // tempo de live com o script ligado (para "≈ X de Y")
+        const ult = ler(`ultimo:${canal}`, 0);
+        if (ult && agora - ult <= LIMITE_PAUSA_MS) somarHoje(canal, "minutos");
+        atualizarPainel();
+        if (!enviando && agora - proximo > tempo(90000, "atrasoMs")) agendar(0);   // o relógio do envio se perdeu
+      }
     }, tempo(60000, "minutoMs"));
     setTimeout(() => { if (parado) return; vigiarFora(); vigia = setInterval(vigiarFora, 5000); }, tempo(15000, "vigiaMs"));
     log("Carregando…");
