@@ -129,7 +129,12 @@
   const contarNoChat = (frase) => textoSemPainel(containerDoChat()).replace(/\n/g, "").split(frase).length - 1;
   const assinaturaDoChat = () => { const t = textoSemPainel(containerDoChat()); return t.length + "|" + t.slice(-300); };
   // Live no mudo: aba sem som o Chrome pode congelar ou descartar em segundo plano
-  const videoMudo = () => { const v = document.querySelector("video"); return !!v && (v.muted || v.volume === 0); };
+  // Live no mudo: a página tem mais de um <video> (player + prévia muda), e a Kick começa muda até você clicar.
+  // Só está no mudo se TODOS os vídeos que estão tocando estão sem som. Com som em qualquer um, não avisa.
+  const videoMudo = () => {
+    const tocando = [...document.querySelectorAll("video")].filter(v => !v.paused && !v.ended && v.readyState >= 2 && v.duration !== 0);
+    return tocando.length > 0 && tocando.every(v => v.muted || v.volume === 0);
+  };
   // Faixa "OFFLINE" + "está off-line" na página do canal
   const offlineNaTela = () => {
     const folhas = [...document.querySelectorAll("span, div, p, h1, h2, h3")].filter(e => e.childElementCount === 0 && e.offsetParent);
@@ -244,6 +249,7 @@
     let parado = false, timer = null, tick = null, minuto = null, vigia = null;
     let proximo = 0, status = "carregando", checagensOff = 0, copiaFora = "", baseFora = null, semCampo = 0, aoVivoDesde = 0;
     let enviando = false, falhasSeguidas = 0, conferiuAlguma = false, pendente = null, ultimoTexto = "", pulsoLocal = Date.now();
+    let mudoDesde = 0;
     // O Chrome (Economia de memória) "dorme" abas paradas: enquanto isso o script não roda e perde pontos.
     // Quando a aba volta, document.wasDiscarded é true; o pulso de cada minuto diz quanto tempo ficou parada.
     const pulsoAnterior = ler(`pulso:${canal}`, 0);
@@ -326,7 +332,9 @@
       if (copiaFora) { fora.hidden = false; fora.textContent = `⚠ Uma cópia ANTIGA do auto-chat mandou "${copiaFora}" de OUTRA aba, navegador ou aparelho (não foi esta). No Chrome: Ctrl+Shift+A, digite "kick" e feche as outras abas da Kick.`; }
       $('[data-al="campo"]').hidden = semCampo < 3;
       $('[data-a="avisos"]').hidden = !window.Notification || Notification.permission === "granted";
-      $('[data-al="mudo"]').hidden = !(st === "aovivo" && videoMudo() && !ler("mudoOk", false));
+      const mudoAgora = st === "aovivo" && videoMudo();
+      mudoDesde = mudoAgora ? (mudoDesde || Date.now()) : 0;
+      $('[data-al="mudo"]').hidden = !(mudoDesde && Date.now() - mudoDesde > tempo(4000, "mudoMs") && !ler("mudoOk", false));
       const oc = ocorrHoje(canal), det = $(".ac-oc");
       det.hidden = !oc.length;
       $(".ac-noc").textContent = oc.length;
