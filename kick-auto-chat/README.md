@@ -13,16 +13,15 @@ no ritmo da regra de pontos de cada canal. Funciona no navegador do computador, 
 O intervalo fica sempre abaixo da janela, com folga para o modo lento do chat e tentativas que falham.
 Para mudar a regra de um canal, edite `REGRAS` no começo do script.
 
-## Como ele garante os pontos (desde a 3.4)
-- **Confere no chat:** depois de enviar, procura a frase na lista do chat. Só conta como enviada quando ela
-  **aparece** (se o chat da página não deixar conferir, conta como antes: campo esvaziou = enviada).
-- **Não apareceu? Manda outra em 40 s**, com outra frase. Se a de antes aparecer atrasada, ela conta e não manda de novo.
-- **Prazo:** a próxima mensagem sai no máximo **2,5 min antes de fechar a janela** desde a última que apareceu
+## Como ele garante os pontos
+- **Conta pelo sinal certo:** a mensagem conta como enviada quando a Kick **aceita** — ou seja, quando a frase
+  **sai do campo de digitar**. Esse é o mesmo sinal que vale o ponto. A conferência no chat é só um **rótulo extra**
+  (✓ Apareceu no chat): em live cheia o chat voa e a frase some rápido, então **não achar no chat nunca é tratado
+  como falha** (senão geraria mensagem repetida e recarga à toa).
+- **A Kick não aceitou?** (a frase ficou presa no campo — modo lento, chat restrito, sem conexão) ele **limpa o campo
+  e tenta de novo** em 40 s, com outra frase. Depois de 3 vezes assim, **recarrega a página** sozinho (no máximo 1x a cada 15 min).
+- **Prazo:** a próxima mensagem sai no máximo **2,5 min antes de fechar a janela** desde a última enviada
   (Brabox: até 7,5 min; Gabe: até 12,5 min), mesmo que o sorteio do intervalo caia mais tarde.
-- **Frase presa no campo:** se a Kick não aceitou e a frase ficou no campo, ele limpa e tenta de novo
-  (antes achava que era você digitando e parava de mandar).
-- **Chat travado:** depois de 3 tentativas seguidas sem aparecer (ou se o campo do chat sumir), **recarrega a página**
-  sozinho — no máximo 1 vez a cada 15 min.
 
 ## Instalar (Tampermonkey — liga sozinho)
 1. Instale a extensão **Tampermonkey** no Chrome.
@@ -42,8 +41,7 @@ live: outro PC com uma versão antiga aberta na página manda mensagem até com 
   Quando algo fez perder pontos aparece **"≈ 54 de 56"**: o segundo número é quanto daria sem as falhas.
 - **✓ Apareceu no chat** — a última mensagem foi conferida na lista do chat.
 - **⚠ Ocorrências hoje** — toque para ver o que fez perder (ou quase perder) pontos, com o horário:
-  aba parada (Chrome congelou a aba ou o computador suspendeu), mensagem que não apareceu, a Kick não aceitou,
-  página recarregada.
+  aba parada (Chrome congelou a aba ou o computador suspendeu), a Kick não aceitou a mensagem, página recarregada.
 - **Última mensagem: há X min** — fica vermelho 3 min antes da janela (12 min no Gabe, 7 min no Brabox),
   por exemplo com o modo lento do chat ou você digitando no campo.
 - **⏸ Pausar / ▶ Retomar** — para de mandar sem desligar (fica salvo mesmo recarregando a página).

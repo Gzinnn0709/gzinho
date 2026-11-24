@@ -1,10 +1,10 @@
-// Kick auto-chat 3.4 — manda uma mensagem de 6 a 10 min (conforme a regra de pontos de cada canal), só com a live no ar,
-// confere se ela apareceu no chat e, se não apareceu, manda outra antes de fechar a janela de pontos.
+// Kick auto-chat 3.5 — manda uma mensagem de 6 a 10 min (conforme a regra de pontos de cada canal), só com a live no ar.
+// Conta como enviada quando a Kick aceita (o campo de digitar esvazia); a conferência no chat é só um rótulo extra.
 // Instale pelo Tampermonkey (arquivo kick-auto-chat.user.js). Também funciona colado no Console (F12).
 // No painel: pausar, mandar agora, idioma das frases, minimizar e desativar o canal.
 (() => {
   "use strict";
-  const VERSAO = "3.4";
+  const VERSAO = "3.5";
   const T = window.__autoChatTeste || {};            // só para os testes automáticos (acelera os tempos)
   const tempo = (padrao, chave) => (T[chave] ?? padrao);
 
@@ -114,7 +114,6 @@
   };
   // texto corrido (a Kick pode quebrar a mensagem em pedaços: nome, emoji, link...)
   const contarNoChat = (frase) => textoSemPainel(containerDoChat()).replace(/\n/g, "").split(frase).length - 1;
-  const assinaturaDoChat = () => { const t = textoSemPainel(containerDoChat()); return t.length + "|" + t.slice(-300); };
   // Live no mudo: aba sem som o Chrome pode congelar ou descartar em segundo plano
   // Live no mudo: a página tem mais de um <video> (player + prévia muda), e a Kick começa muda até você clicar.
   // Só está no mudo se TODOS os vídeos que estão tocando estão sem som. Com som em qualquer um, não avisa.
@@ -235,7 +234,7 @@
     const MARGEM_MS = tempo(150000, "margemMs");
     let parado = false, timer = null, tick = null, minuto = null, vigia = null;
     let proximo = 0, status = "carregando", checagensOff = 0, copiaFora = "", baseFora = null, semCampo = 0, aoVivoDesde = 0;
-    let enviando = false, falhasSeguidas = 0, conferiuAlguma = false, pendente = null, ultimoTexto = "", pulsoLocal = Date.now();
+    let enviando = false, falhasSeguidas = 0, ultimoTexto = "", pulsoLocal = Date.now();
     let mudoDesde = 0;
     // O Chrome (Economia de memória) "dorme" abas paradas: enquanto isso o script não roda e perde pontos.
     // Quando a aba volta, document.wasDiscarded é true; o pulso de cada minuto diz quanto tempo ficou parada.
@@ -365,9 +364,8 @@
     };
     const deuCerto = (msg, idioma, clima, conferida) => {
       somarHoje(canal, "msgs"); gravar(`ultimo:${canal}`, Date.now());
-      falhasSeguidas = 0; pendente = null;
-      if (conferida) conferiuAlguma = true;
-      log(`${conferida ? "✓ Apareceu no chat" : "Enviado (não deu para conferir no chat)"} [${idioma} · ${clima}]: "${msg}"`);
+      falhasSeguidas = 0;
+      log(`${conferida ? "\u2713 Apareceu no chat" : "Enviado"} [${idioma} \u00b7 ${clima}]: "${msg}"`);
       atualizarPainel();
     };
     const deuErrado = (motivo) => {
@@ -375,17 +373,16 @@
       somarHoje(canal, "falhas");
       registrar(canal, motivo);
       const espera = falhasSeguidas >= 3 ? tempo(120000, "retryLongoMs") : tempo(40000, "retryMs");
-      log(`⚠ ${motivo}: mando outra em ${Math.round(espera / 1000)}s`);
-      if (falhasSeguidas >= 3) recarregar(`${falhasSeguidas} tentativas seguidas sem a mensagem aparecer`);
+      log(`\u26a0 ${motivo}: tento de novo em ${Math.round(espera / 1000)}s`);
+      if (falhasSeguidas >= 3) recarregar(`${falhasSeguidas} tentativas seguidas sem conseguir enviar`);
       return espera;
     };
-    // Escreve a frase, aperta Enter (ou o botão) e confere se ela apareceu na lista do chat.
-    // Devolve { r: "ok" | "semconferir" | "falhou" | "digitando" | "semcampo" | "fora" | "ocupado" | "parado", espera }
+    // Escreve a frase e aperta Enter. O sinal CONFIÁVEL de que a Kick aceitou é o CAMPO ESVAZIAR.
+    // A conferência no chat é só para o rótulo "\u2713 Apareceu" — nunca trata "não achei no chat" como falha:
+    // em live cheia o chat voa e a frase some antes da conferência, e tratar como falha gerava spam e recarga à toa.
     const enviar = async () => {
       if (parado || enviando) return { r: "ocupado" };
       if (slugAtual() !== canal) { log("Você saiu deste canal: não mandei nada."); return { r: "fora" }; }   // trocou de canal na mesma aba
-      // a de antes, que não tinha aparecido, apareceu atrasada? então valeu
-      if (pendente && contarNoChat(pendente.frase) > pendente.antes) { const p = pendente; deuCerto(p.msg, p.idioma, p.clima, true); return { r: "ok" }; }
       const input = acharInput();
       if (!input) {
         semCampo++; log("Não achei o campo do chat.");
@@ -406,7 +403,7 @@
         if (idioma === "auto") { try { idioma = idiomaDoChat(txt); } catch (e) { idioma = "pt"; } }
         const { frase, msg } = escolherFrase(clima, idioma);
         ultimoTexto = msg;
-        const antes = contarNoChat(frase), chatAntes = assinaturaDoChat();
+        const antes = contarNoChat(frase);
         const campo = acharInput() || input;
         campo.focus();
         document.execCommand("selectAll", false, null);
@@ -430,20 +427,16 @@
           limparCampo();                                    // não deixa a frase parada no campo
           return { r: "falhou", espera: deuErrado("a Kick não aceitou a mensagem (modo lento, chat restrito ou sem conexão?)") };
         }
-        // saiu do campo: espera aparecer na lista do chat
-        const ate = Date.now() + tempo(12000, "confirmarMs");
+        // campo esvaziou = a Kick aceitou. Confere no chat só para o rótulo (bônus); ausência NÃO é falha.
+        let apareceu = false;
+        const ate = Date.now() + tempo(8000, "confirmarMs");
         do {
-          if (contarNoChat(frase) > antes) { deuCerto(msg, idioma, clima, true); return { r: "ok" }; }
+          if (contarNoChat(frase) > antes) { apareceu = true; break; }
           await esperar(tempo(500, "conferirPassoMs"));
         } while (Date.now() < ate && !parado);
         if (parado) return { r: "parado" };
-        // Não apareceu. Se dá para conferir nesta página (já apareceu outra antes, ou o chat está andando), foi falha mesmo.
-        if (conferiuAlguma || assinaturaDoChat() !== chatAntes) {
-          pendente = { frase, msg, idioma, clima, antes };    // se aparecer atrasada, ainda conta
-          return { r: "falhou", espera: deuErrado("a mensagem não apareceu no chat") };
-        }
-        deuCerto(msg, idioma, clima, false);                // chat parado ou diferente: conta como enviada (o campo esvaziou)
-        return { r: "semconferir" };
+        deuCerto(msg, idioma, clima, apareceu);
+        return { r: "ok" };
       } finally { enviando = false; }
     };
     // Próxima mensagem: sorteio do intervalo do canal, mas nunca depois do prazo
