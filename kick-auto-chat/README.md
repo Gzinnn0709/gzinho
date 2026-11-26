@@ -63,14 +63,18 @@ Em português ou espanhol conforme o chat (rindo, triste/respeito ou normal), se
 e às vezes com um emoji no fim. Para trocar as palavras, edite `FRASES` no começo do script.
 
 ## Emotes
-Os emotes vêm **desligados por padrão**, porque mandar emote junto pela automação às vezes trava o envio na Kick
-(a Kick abre um menuzinho de emote que "engole" o Enter e a mensagem fica presa no campo). Só as palavras já
-funcionam de forma confiável.
+Os emotes vêm **desligados por padrão** e o script **só usa emotes que são SEUS** — ele **nunca pega emote do chat**.
+Motivo: no chat aparecem emotes **de inscrito** que outras pessoas usam mas você não tem, e mandar um emote que você
+não tem **trava o envio** (fica preso no campo). Por isso, emote só a partir da sua própria lista.
 
-Se quiser testar emotes, clique em **😶 Sem emote** no painel para ligar (vira **😃 Emotes (N)**): o script aprende
-sozinho os emotes que aparecem no chat do canal e manda um junto com a frase. Se um envio com emote falhar, a
-próxima mensagem vai **sem** emote sozinho, para nunca travar o envio. Para emotes específicos (ex.: de inscrito),
-edite `EMOTES_MANUAIS` no começo do script no formato `"id:nome"`.
+Para usar os seus emotes:
+1. Liste no `EMOTES_MANUAIS`, no começo do script, no formato `"id:nome"` (o `id` é o número no endereço da imagem do
+   emote: `files.kick.com/emotes/ID/...`). Ou salve sem editar o arquivo, pelo Console (F12):
+   `localStorage.setItem("autochat:emotesMeus", JSON.stringify(["37226:EZ","1730752:gabepeixeLOVE"]))`.
+2. No painel, clique em **😶 Sem emote** para ligar (vira **😃 Emotes (N)**).
+
+Se ligar sem ter configurado nenhum, o botão mostra **"😃 Emotes (configure os seus)"** e ele simplesmente não manda
+emote (só as palavras). Se mesmo assim um envio com emote falhar, a próxima vai sem emote sozinha, para nunca travar.
 
 
 ## Para não perder pontos

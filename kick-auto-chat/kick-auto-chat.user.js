@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kick auto-chat Gabepeixe
 // @namespace    gzinho
-// @version      3.9
+// @version      4.0
 // @description  Manda uma mensagem a cada 6-10 min (regra de pontos de cada canal) nos canais da Kick que você ativar, só com a live no ar
 // @match        https://kick.com/*
 // @noframes
@@ -17,7 +17,7 @@
 // No painel: pausar, mandar agora, idioma das frases, minimizar e desativar o canal.
 (() => {
   "use strict";
-  const VERSAO = "3.9";
+  const VERSAO = "4.0";
   const T = window.__autoChatTeste || {};            // só para os testes automáticos (acelera os tempos)
   const tempo = (padrao, chave) => (T[chave] ?? padrao);
 
@@ -31,11 +31,11 @@
     brabox: { pontos: 5, janela: 10, unidade: "pts", intervalo: [6, 2] }        // 5 pontos a cada 10 min: mensagem a cada 6–8 min
   };
   const REGRA_PADRAO = { pontos: 1, janela: 15, unidade: "pts", intervalo: [8, 2] };
-  // Emotes da Kick: o script usa sozinho os emotes que aparecem no chat de cada canal (globais e do canal — que você também tem).
-  // Para forçar emotes específicos (ex.: os seus de inscrito), coloque os códigos aqui no formato "id:nome".
-  // O código de um emote é o que vai no "[emote:ID:nome]"; você acha o ID na imagem do emote (files.kick.com/emotes/ID/...).
+  // Emotes da Kick: SÓ emotes que são SEUS. Não dá para pegar do chat porque lá aparecem emotes de inscrito que você
+  // não tem — e usar um que você não tem trava o envio. Então liste aqui os seus, no formato "id:nome"
+  // (o id é o número no endereço da imagem do emote: files.kick.com/emotes/ID/...). Também pode salvar sem editar o
+  // arquivo, pelo console: localStorage.setItem("autochat:emotesMeus", JSON.stringify(["37226:EZ","1730752:gabepeixeLOVE"]))
   const EMOTES_MANUAIS = [];   // ex.: ["37226:EZ", "1730752:gabepeixeLOVE"]
-  const RE_EMOTE_ID = /emotes?\/(\d+)\b/i;
   const regraDe = (canal) => REGRAS[canal] || REGRA_PADRAO;
   // Frases com 5+ palavras. O script lê o clima do chat: rindo -> risada, triste -> triste, resto -> neutro
   const FRASES = {
@@ -277,7 +277,6 @@
     const descartada = T.descartada ?? !!document.wasDiscarded;
     const minParada = pulsoAnterior ? Math.round((Date.now() - pulsoAnterior) / 60000) : 0;
     const recentes = ler(`recentes:${canal}`, []);
-    let emotesVistos = ler(`emotes:${canal}`, []);
     const emotesLigados = () => ler("emotesLig", false);   // desligado por padrão: o emote inline pode travar o envio na Kick
     const pausado = () => ler(`pausado:${canal}`, false);
     const idiomaEscolhido = () => ler(`idioma:${canal}`, "auto");
@@ -352,7 +351,7 @@
       const id = idiomaEscolhido();
       $('[data-a="idioma"]').textContent = id === "auto" ? "🌐 Auto" : id === "es" ? "🌐 ES" : "🌐 PT";
       const nEmotes = fonteEmotes().length;
-      $('[data-a="emotes"]').textContent = !emotesLigados() ? "😶 Sem emote" : nEmotes ? `😃 Emotes (${nEmotes})` : "😃 Emotes";
+      $('[data-a="emotes"]').textContent = !emotesLigados() ? "😶 Sem emote" : nEmotes ? `😃 Emotes (${nEmotes})` : "😃 Emotes (configure os seus)";
       $('[data-al="antiga"]').hidden = !(copiaAntiga || painelAntigoNaTela());
       const fora = $('[data-al="fora"]');
       if (copiaFora) { fora.hidden = false; fora.textContent = `⚠ Uma cópia ANTIGA do auto-chat mandou "${copiaFora}" de OUTRA aba, navegador ou aparelho (não foi esta). No Chrome: Ctrl+Shift+A, digite "kick" e feche as outras abas da Kick.`; }
@@ -374,21 +373,8 @@
 
     // ---------- escolher e enviar a frase ----------
     // lê os emotes que aparecem no chat deste canal (pela imagem: id em files.kick.com/emotes/ID e o nome no alt)
-    const coletarEmotes = () => {
-      const cont = containerDoChat(); if (!cont) return;
-      let mudou = false;
-      for (const img of cont.querySelectorAll("img")) {
-        const src = img.getAttribute("src") || img.getAttribute("data-src") || "";
-        const id = (img.getAttribute("data-emote-id") || (src.match(RE_EMOTE_ID) || [])[1] || "").trim();
-        const nome = (img.getAttribute("data-emote-name") || img.getAttribute("alt") || img.getAttribute("title") || "").trim();
-        if (/^\d+$/.test(id) && /^[A-Za-z0-9_]{2,40}$/.test(nome)) {
-          const e = id + ":" + nome;
-          if (!emotesVistos.includes(e)) { emotesVistos.push(e); mudou = true; }
-        }
-      }
-      if (mudou) { while (emotesVistos.length > 40) emotesVistos.shift(); gravar(`emotes:${canal}`, emotesVistos); }
-    };
-    const fonteEmotes = () => EMOTES_MANUAIS.length ? EMOTES_MANUAIS : emotesVistos;
+    // só emotes que são SEUS: a lista do código, ou uma salva no localStorage (autochat:emotesMeus). Nunca pega do chat.
+    const fonteEmotes = () => { const l = ler("emotesMeus", null); return (Array.isArray(l) && l.length) ? l.filter(e => /^\d+:[A-Za-z0-9_]{1,40}$/.test(e)) : EMOTES_MANUAIS; };
     const umEmote = () => {
       const f = fonteEmotes(); if (!f.length) return "";
       const ult = ler(`ultimoEmote:${canal}`, "");
@@ -646,7 +632,7 @@
         if (!enviando && agora - proximo > tempo(90000, "atrasoMs")) agendar(0);   // o relógio do envio se perdeu
       }
     }, tempo(60000, "minutoMs"));
-    setTimeout(() => { if (parado) return; vigiarFora(); coletarEmotes(); vigia = setInterval(() => { vigiarFora(); coletarEmotes(); }, 5000); }, tempo(15000, "vigiaMs"));
+    setTimeout(() => { if (parado) return; vigiarFora(); vigia = setInterval(vigiarFora, 5000); }, tempo(15000, "vigiaMs"));
     log("Carregando…");
     atualizarPainel();
     agendar(tempo(8000, "inicioMs"));                // espera a página montar (faixa OFFLINE etc.)
