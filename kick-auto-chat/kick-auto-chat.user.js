@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kick auto-chat Gabepeixe
 // @namespace    gzinho
-// @version      4.0
+// @version      4.1
 // @description  Manda uma mensagem a cada 6-10 min (regra de pontos de cada canal) nos canais da Kick que você ativar, só com a live no ar
 // @match        https://kick.com/*
 // @noframes
@@ -17,7 +17,7 @@
 // No painel: pausar, mandar agora, idioma das frases, minimizar e desativar o canal.
 (() => {
   "use strict";
-  const VERSAO = "4.0";
+  const VERSAO = "4.1";
   const T = window.__autoChatTeste || {};            // só para os testes automáticos (acelera os tempos)
   const tempo = (padrao, chave) => (T[chave] ?? padrao);
 
@@ -35,7 +35,8 @@
   // não tem — e usar um que você não tem trava o envio. Então liste aqui os seus, no formato "id:nome"
   // (o id é o número no endereço da imagem do emote: files.kick.com/emotes/ID/...). Também pode salvar sem editar o
   // arquivo, pelo console: localStorage.setItem("autochat:emotesMeus", JSON.stringify(["37226:EZ","1730752:gabepeixeLOVE"]))
-  const EMOTES_MANUAIS = [];   // ex.: ["37226:EZ", "1730752:gabepeixeLOVE"]
+  // Seus emotes. Formatos aceitos: ":nome:" (atalho de coleção da Kick, ex. :collectiblesGoldenCLAP:) ou "id:nome".
+  const EMOTES_MANUAIS = [":collectiblesGoldenCLAP:", ":collectiblesMoney:"];
   const regraDe = (canal) => REGRAS[canal] || REGRA_PADRAO;
   // Frases com 5+ palavras. O script lê o clima do chat: rindo -> risada, triste -> triste, resto -> neutro
   const FRASES = {
@@ -374,16 +375,18 @@
     // ---------- escolher e enviar a frase ----------
     // lê os emotes que aparecem no chat deste canal (pela imagem: id em files.kick.com/emotes/ID e o nome no alt)
     // só emotes que são SEUS: a lista do código, ou uma salva no localStorage (autochat:emotesMeus). Nunca pega do chat.
-    const fonteEmotes = () => { const l = ler("emotesMeus", null); return (Array.isArray(l) && l.length) ? l.filter(e => /^\d+:[A-Za-z0-9_]{1,40}$/.test(e)) : EMOTES_MANUAIS; };
+    const fonteEmotes = () => { const l = ler("emotesMeus", null); return (Array.isArray(l) && l.length) ? l.filter(e => /^(\d+:[A-Za-z0-9_]{1,40}|:[A-Za-z0-9_]{1,60}:)$/.test(e)) : EMOTES_MANUAIS; };
     const umEmote = () => {
       const f = fonteEmotes(); if (!f.length) return "";
       const ult = ler(`ultimoEmote:${canal}`, "");
       let opc = f.filter(e => e !== ult); if (!opc.length) opc = f;   // não repete o emote anterior
-      const esc = String(opc[Math.floor(Math.random() * opc.length)]);
-      const [id, nome] = esc.split(":");
-      if (!(/^\d+$/.test(id) && nome)) return "";
+      const esc = String(opc[Math.floor(Math.random() * opc.length)]).trim();
+      let codigo = "";
+      if (/^:[A-Za-z0-9_]{1,60}:$/.test(esc)) codigo = esc;                      // atalho de coleção da Kick, ex.: :collectiblesGoldenCLAP:
+      else { const [id, nome] = esc.split(":"); if (/^\d+$/.test(id) && nome) codigo = `[emote:${id}:${nome}]`; }
+      if (!codigo) return "";
       gravar(`ultimoEmote:${canal}`, esc);
-      return ` [emote:${id}:${nome}]`;
+      return " " + codigo;
     };
     let semEmoteAgora = false;   // depois de uma falha, a próxima vai sem emote (o emote pode estar travando o envio)
     const escolherFrase = (clima, idioma) => {

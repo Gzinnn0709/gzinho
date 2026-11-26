@@ -68,9 +68,11 @@ Motivo: no chat aparecem emotes **de inscrito** que outras pessoas usam mas voc�
 não tem **trava o envio** (fica preso no campo). Por isso, emote só a partir da sua própria lista.
 
 Para usar os seus emotes:
-1. Liste no `EMOTES_MANUAIS`, no começo do script, no formato `"id:nome"` (o `id` é o número no endereço da imagem do
-   emote: `files.kick.com/emotes/ID/...`). Ou salve sem editar o arquivo, pelo Console (F12):
-   `localStorage.setItem("autochat:emotesMeus", JSON.stringify(["37226:EZ","1730752:gabepeixeLOVE"]))`.
+1. Liste no `EMOTES_MANUAIS`, no começo do script. Dois formatos valem:
+   - **Atalho de coleção** (o mais fácil): `":collectiblesGoldenCLAP:"` — é o texto que você digita no chat e vira o emote.
+   - **id:nome**: `"37226:EZ"` (o `id` é o número no endereço da imagem: `files.kick.com/emotes/ID/...`).
+   Ou salve sem editar o arquivo, pelo Console (F12):
+   `localStorage.setItem("autochat:emotesMeus", JSON.stringify([":collectiblesGoldenCLAP:",":collectiblesMoney:"]))`.
 2. No painel, clique em **😶 Sem emote** para ligar (vira **😃 Emotes (N)**).
 
 Se ligar sem ter configurado nenhum, o botão mostra **"😃 Emotes (configure os seus)"** e ele simplesmente não manda
