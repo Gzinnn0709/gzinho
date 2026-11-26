@@ -4,7 +4,7 @@
 // No painel: pausar, mandar agora, idioma das frases, minimizar e desativar o canal.
 (() => {
   "use strict";
-  const VERSAO = "3.5";
+  const VERSAO = "3.6";
   const T = window.__autoChatTeste || {};            // só para os testes automáticos (acelera os tempos)
   const tempo = (padrao, chave) => (T[chave] ?? padrao);
 
@@ -23,40 +23,33 @@
   const FRASES = {
     pt: {
       risada: [
-        "kkkkk eu não aguento mais rir", "chat eu tô passando mal kkkkk", "isso aqui é melhor que novela",
-        "minha mãe perguntou por que tô rindo", "alguém clipa isso pelo amor de deus", "eu vim só olhar e fiquei kkkk",
-        "o roteirista dessa live tá de parabéns", "não era pra eu tá rindo disso", "rindo sozinho aqui igual doido kkkk",
-        "o chat tá mais doido que a live", "tô aqui só pelo caos mesmo kkkk", "boa demais essa kkkkk morri aqui",
-        "quem riu também levanta a mão", "melhor que qualquer filme de comédia"
+        "kkkkk", "rachei demais kkkk", "chorei de rir kkkk", "morri kkkk", "parei tudo kkkk",
+        "kkkk brabo demais", "chorando de rir aqui", "kkkk sensacional", "rindo até agora kkkk",
+        "kkkk demais da conta", "kkkk que coisa linda", "não guento mais kkkk"
       ],
       neutro: [
-        "tô acompanhando aqui desde cedo hoje", "salve chat tamo junto aqui", "tamo junto até o final da live",
-        "chat tá movimentado hoje hein", "acompanhando tudo aqui com atenção", "tô aqui firme e forte acompanhando",
-        "chat alguém explica o que aconteceu", "eu juro que pisquei e perdi tudo", "parei tudo pra ver isso aqui",
-        "isso merece ir pro clipe urgente", "nível de caos dessa live tá alto", "essa live faz mal pro coração"
+        "kishow", "kishow demais", "muito brabo isso", "brabo demais", "insano demais",
+        "top demais", "sensacional demais", "lendário demais", "surreal isso", "que jogada brava",
+        "jogou muito", "aula de jogo", "monstro demais", "nível absurdo", "é isso aí",
+        "vamo que vamo", "bora demais", "show de bola", "espetáculo isso", "simplesmente sensacional",
+        "demais da conta", "que craque", "jogando muito hoje", "fechou demais"
       ],
       triste: [
-        "força aí tamo junto com você", "sinto muito mesmo, muita força aí", "meus sentimentos, força pra todo mundo",
-        "que momento pesado, tamo junto aqui", "força chat, momento difícil esse aí", "tamo junto nessa, muita força mesmo"
+        "muita força", "força demais", "tamo junto", "respeito demais", "meus sentimentos", "momento forte demais"
       ]
     },
     es: {
       risada: [
-        "jajaja no puedo más de risa", "chat me estoy muriendo de risa", "esto es mejor que una novela",
-        "mi mamá me preguntó por qué me río", "alguien clipee esto por favor ya", "vine a mirar un rato y me quedé",
-        "el guionista de este stream es crack", "no debería reírme de esto jajaja", "me estoy riendo solo como loco",
-        "el chat está más loco que el stream", "estoy acá solo por el caos jaja", "qué buena esa jajaja me mató",
-        "el que se rió levante la mano", "mejor que cualquier película de comedia"
+        "jajaja", "me morí jajaja", "no aguanto jajaja", "llorando de risa jaja", "jajaja brutal",
+        "me mató jajaja", "jajaja increíble", "jajaja qué crack", "sigo riendo jajaja", "jajaja demasiado"
       ],
       neutro: [
-        "estoy mirando desde temprano hoy acá", "saludos chat acá estamos firmes", "acá estamos hasta el final del stream",
-        "el chat está movido hoy eh", "siguiendo todo con mucha atención acá", "acá firme y fuerte mirando todo",
-        "chat alguien explica qué pasó recién", "juro que parpadeé y me perdí todo", "dejé todo para ver esto acá",
-        "esto merece ir al clip ya", "el nivel de caos está alto hoy", "este stream le hace mal al corazón"
+        "qué crack", "muy crack", "tremendo eso", "brutal demasiado", "increíble eso", "qué jugada",
+        "jugó muchísimo", "nivel brutal", "tremenda clase", "vamos que vamos", "espectacular eso",
+        "sos un crack", "de otro nivel", "qué show", "show total", "una locura", "jugando muchísimo", "es asi"
       ],
       triste: [
-        "fuerza ahí estamos con vos", "lo siento mucho, mucha fuerza ahí", "mis condolencias, fuerza para todos",
-        "momento pesado, acá estamos con vos", "fuerza chat, momento difícil este", "estamos juntos en esto, mucha fuerza"
+        "mucha fuerza", "fuerza total", "estamos con vos", "respeto total", "mis condolencias", "momento difícil"
       ]
     }
   };
@@ -138,6 +131,29 @@
       return !!(j.livestream && j.livestream.is_live !== false);
     } catch (e) { return true; }
   };
+  // Timeout / silenciado / modo lento: a Kick impede de enviar por um tempo. Lê o aviso perto do campo e os segundos.
+  const RE_BLOQUEIO = /time[-\s]?d?\s*out|you are (temporarily )?(banned|timed)|you can (chat|send|type|message) again|silenciad|impedid[ao] de (enviar|falar|conversar)|você (está|foi) (banid|silenciad|impedid)|no puedes (enviar|escribir|chatear|hablar)|est[áa]s (banead|silenciad)|slow\s*mode|modo lento/i;
+  const RE_SEG = /(\d+)\s*(segundos?|seconds?|segs?|minutos?|minutes?|mins?|horas?|hours?|hs?|s|m)\b/i;
+  const infoBloqueio = () => {
+    const inp = acharInput();
+    if (!inp) return null;
+    let el = inp.parentElement;
+    // sobe só pela área do campo de digitar; para antes do body (não lê o nosso painel) e da lista de mensagens
+    for (let i = 0; i < 4 && el && el !== document.body && el !== document.documentElement; i++, el = el.parentElement) {
+      if (el.querySelector && el.querySelector("#autochat, #autochat-pilula")) break;
+      const t = el.innerText || "";
+      if (t.length > 500) break;                     // subiu até a lista de mensagens: para
+      if (RE_BLOQUEIO.test(t)) {
+        let seg = 0; const m = t.match(RE_SEG);
+        if (m) { seg = parseInt(m[1], 10) || 0; const u = m[2].toLowerCase();
+          if (u.startsWith("h")) seg *= 3600; else if (u === "m" || u.startsWith("min")) seg *= 60; }
+        return { tipo: /slow\s*mode|modo lento/i.test(t) ? "lento" : "timeout", seg };
+      }
+    }
+    if (inp.getAttribute && (inp.getAttribute("contenteditable") === "false" || inp.getAttribute("aria-disabled") === "true" || inp.disabled)) return { tipo: "timeout", seg: 0 };
+    return null;
+  };
+
   // Clima do chat (risada / triste / neutro) e idioma (pt / es)
   const climaDoChat = (txt) => {
     for (const f of TODAS_FRASES) txt = txt.split(f).join(" ");          // ignora as nossas
@@ -235,6 +251,7 @@
     let parado = false, timer = null, tick = null, minuto = null, vigia = null;
     let proximo = 0, status = "carregando", checagensOff = 0, copiaFora = "", baseFora = null, semCampo = 0, aoVivoDesde = 0;
     let enviando = false, falhasSeguidas = 0, ultimoTexto = "", pulsoLocal = Date.now();
+    let bloqueadoAte = 0;
     let mudoDesde = 0;
     // O Chrome (Economia de memória) "dorme" abas paradas: enquanto isso o script não roda e perde pontos.
     // Quando a aba volta, document.wasDiscarded é true; o pulso de cada minuto diz quanto tempo ficou parada.
@@ -293,7 +310,7 @@
       if (parado) return;
       const st = pausado() ? "pausado" : status;
       painel.dataset.st = st;
-      const textos = { carregando: "Conferindo se a live está no ar…", aovivo: enviando ? "🔴 Ao vivo · conferindo se a mensagem apareceu no chat…" : `🔴 Ao vivo · próxima em ${relogio()}`, offline: `Live offline · confere de novo em ${relogio()}`, pausado: "⏸ Pausado (não manda nada)" };
+      const textos = { carregando: "Conferindo se a live está no ar…", aovivo: Date.now() < bloqueadoAte ? `⏳ Em timeout · volta em ${relogio()}` : enviando ? "🔴 Ao vivo · conferindo…" : `🔴 Ao vivo · próxima em ${relogio()}`, offline: `Live offline · confere de novo em ${relogio()}`, pausado: "⏸ Pausado (não manda nada)" };
       $(".ac-st").textContent = textos[st] || st;
       $(".ac-mini").textContent = st === "pausado" ? "⏸" : st === "aovivo" ? relogio() : "off";
       const e = estatHoje(canal);
@@ -346,7 +363,8 @@
     const esperar = (ms) => new Promise(r => setTimeout(r, ms));
     const ultimoOk = () => Math.max(ler(`ultimo:${canal}`, 0), aoVivoDesde);
     // frase nossa que ficou no campo (a Kick não aceitou): pode limpar, não é você digitando
-    const ehNosso = (t) => !!t && (t === ultimoTexto || [...TODAS_FRASES].some(f => t === f || t.startsWith(f + " ")));
+    // leftover nosso que ficou no campo: só a frase que acabamos de tentar, ou uma de versão antiga (nunca texto do usuário)
+    const ehNosso = (t) => !!t && (t === ultimoTexto || FRASES_ANTIGAS.has(t));
     const limparCampo = () => {
       const inp = acharInput(); if (!inp) return;
       inp.focus(); document.execCommand("selectAll", false, null); document.execCommand("delete", false, null);
@@ -367,6 +385,18 @@
       falhasSeguidas = 0;
       log(`${conferida ? "\u2713 Apareceu no chat" : "Enviado"} [${idioma} \u00b7 ${clima}]: "${msg}"`);
       atualizarPainel();
+    };
+    const tratarBloqueio = (bloq) => {
+      const base = bloq.seg ? bloq.seg * 1000 : tempo(60000, "timeoutPadraoMs");
+      const ms = Math.max(tempo(5000, "timeoutMinMs"), base) + tempo(4000, "timeoutMargemMs");
+      const agora = Date.now();
+      if (agora > bloqueadoAte) registrar(canal, bloq.tipo === "lento"
+        ? `chat em modo lento${bloq.seg ? ` (${bloq.seg}s)` : ""}: esperando pra mandar`
+        : `você levou timeout${bloq.seg ? ` de ${bloq.seg}s` : ""} na Kick: esperando pra voltar`);
+      bloqueadoAte = agora + ms;
+      falhasSeguidas = 0;                            // timeout/modo lento não é "não aceitou": não recarrega
+      log(`${bloq.tipo === "lento" ? "⏳ Modo lento" : "⏳ Em timeout"}: volto em ${Math.round(ms / 1000)}s`);
+      return ms;
     };
     const deuErrado = (motivo) => {
       falhasSeguidas++;
@@ -395,6 +425,8 @@
         if (!ehNosso(noCampo)) { log("Você está digitando: tento de novo em 30s"); return { r: "digitando", espera: tempo(30000, "digitandoMs") }; }
         limparCampo();                                      // sobrou uma frase nossa que não saiu
       }
+      const bloq0 = infoBloqueio();
+      if (bloq0) return { r: "bloqueio", espera: tratarBloqueio(bloq0) };
       enviando = true;
       try {
         const txt = textoDoChat();
@@ -425,6 +457,8 @@
         if (parado) return { r: "parado" };
         if (!vazio()) {
           limparCampo();                                    // não deixa a frase parada no campo
+          const bloq = infoBloqueio();
+          if (bloq) return { r: "bloqueio", espera: tratarBloqueio(bloq) };
           return { r: "falhou", espera: deuErrado("a Kick não aceitou a mensagem (modo lento, chat restrito ou sem conexão?)") };
         }
         // campo esvaziou = a Kick aceitou. Confere no chat só para o rótulo (bônus); ausência NÃO é falha.

@@ -41,7 +41,7 @@ live: outro PC com uma versão antiga aberta na página manda mensagem até com 
   Quando algo fez perder pontos aparece **"≈ 54 de 56"**: o segundo número é quanto daria sem as falhas.
 - **✓ Apareceu no chat** — a última mensagem foi conferida na lista do chat.
 - **⚠ Ocorrências hoje** — toque para ver o que fez perder (ou quase perder) pontos, com o horário:
-  aba parada (Chrome congelou a aba ou o computador suspendeu), a Kick não aceitou a mensagem, página recarregada.
+  aba parada (Chrome congelou a aba ou o computador suspendeu), timeout da Kick, modo lento, a Kick não aceitou a mensagem, página recarregada.
 - **Última mensagem: há X min** — fica vermelho 3 min antes da janela (12 min no Gabe, 7 min no Brabox),
   por exemplo com o modo lento do chat ou você digitando no campo.
 - **⏸ Pausar / ▶ Retomar** — para de mandar sem desligar (fica salvo mesmo recarregando a página).
@@ -55,8 +55,11 @@ Já vem ligado em `gabepeixe`, `brabox` e `orenatovicente`. Em qualquer outro ca
 o script para e não manda mensagem no canal errado.
 
 ## Frases
-Português ou espanhol, com 5+ palavras, de acordo com o clima do chat (rindo, triste ou normal), sem
-repetir as últimas 6 e às vezes com um emoji no fim.
+Palavras curtas de **hype** (ex.: "kishow", "muito brabo", "top demais", "kkkk", "gg") que **ninguém
+responde nem interpreta torto** — nada de pergunta, "chat alguém explica", nem frase que puxa conversa.
+Em português ou espanhol conforme o chat (rindo, triste/respeito ou normal), sem repetir as últimas 6
+e às vezes com um emoji no fim. Para trocar as palavras, edite `FRASES` no começo do script.
+
 
 ## Para não perder pontos
 - **Chrome "dormindo" a aba (Economia de memória):** o Chrome descarta abas paradas (janela minimizada, aba
@@ -67,6 +70,9 @@ repetir as últimas 6 e às vezes com um emoji no fim.
   **baixinho (1%)** em vez do mudo — o painel avisa (🔇) quando está no mudo.
 - **Economia de energia do Chrome:** em **Chrome → Configurações → Desempenho**, desligue a **Economia de energia**
   (ou deixe só "com bateria fraca"): ela também congela abas em segundo plano.
+- **Timeout da Kick:** se você levar timeout (a Kick te silencia por uns segundos, geralmente por mandar rápido
+  demais), o script **reconhece, espera o tempo acabar e volta sozinho** — não fica martelando nem recarrega à toa.
+  Aparece em "Ocorrências hoje" e no painel ("⏳ Em timeout · volta em…").
 - **PC em suspensão:** desligue a suspensão durante a live (Windows: Configurações → Sistema → Energia).
 - **Abra as abas antes da live:** o script espera com a live offline e começa sozinho quando ela abrir.
 - O script recarrega a página com a live **offline** (a cada ~5 min) e, com a live no ar, só quando o chat trava
