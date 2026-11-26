@@ -60,6 +60,14 @@ responde nem interpreta torto** — nada de pergunta, "chat alguém explica", ne
 Em português ou espanhol conforme o chat (rindo, triste/respeito ou normal), sem repetir as últimas 6
 e às vezes com um emoji no fim. Para trocar as palavras, edite `FRASES` no começo do script.
 
+## Emotes
+Para as mensagens não ficarem só em palavras, o script **aprende sozinho os emotes que aparecem no chat**
+de cada canal (globais e do canal — que você também tem) e manda um junto com a frase de vez em quando.
+Nunca inventa código: só usa emote que ele viu no chat. O botão **😃 Emotes (N)** no painel mostra quantos
+já aprendeu e liga/desliga esse envio (😶 Sem emote).
+
+Quer usar emotes **específicos** (ex.: os seus de inscrito)? Edite `EMOTES_MANUAIS` no começo do script, no
+formato `"id:nome"` — o `id` é o número que aparece no endereço da imagem do emote (`files.kick.com/emotes/ID/...`).
 
 ## Para não perder pontos
 - **Chrome "dormindo" a aba (Economia de memória):** o Chrome descarta abas paradas (janela minimizada, aba

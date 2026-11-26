@@ -4,7 +4,7 @@
 // No painel: pausar, mandar agora, idioma das frases, minimizar e desativar o canal.
 (() => {
   "use strict";
-  const VERSAO = "3.6";
+  const VERSAO = "3.7";
   const T = window.__autoChatTeste || {};            // só para os testes automáticos (acelera os tempos)
   const tempo = (padrao, chave) => (T[chave] ?? padrao);
 
@@ -18,6 +18,11 @@
     brabox: { pontos: 5, janela: 10, unidade: "pts", intervalo: [6, 2] }        // 5 pontos a cada 10 min: mensagem a cada 6–8 min
   };
   const REGRA_PADRAO = { pontos: 1, janela: 15, unidade: "pts", intervalo: [8, 2] };
+  // Emotes da Kick: o script usa sozinho os emotes que aparecem no chat de cada canal (globais e do canal — que você também tem).
+  // Para forçar emotes específicos (ex.: os seus de inscrito), coloque os códigos aqui no formato "id:nome".
+  // O código de um emote é o que vai no "[emote:ID:nome]"; você acha o ID na imagem do emote (files.kick.com/emotes/ID/...).
+  const EMOTES_MANUAIS = [];   // ex.: ["37226:EZ", "1730752:gabepeixeLOVE"]
+  const RE_EMOTE_ID = /emotes?\/(\d+)\b/i;
   const regraDe = (canal) => REGRAS[canal] || REGRA_PADRAO;
   // Frases com 5+ palavras. O script lê o clima do chat: rindo -> risada, triste -> triste, resto -> neutro
   const FRASES = {
@@ -259,6 +264,8 @@
     const descartada = T.descartada ?? !!document.wasDiscarded;
     const minParada = pulsoAnterior ? Math.round((Date.now() - pulsoAnterior) / 60000) : 0;
     const recentes = ler(`recentes:${canal}`, []);
+    let emotesVistos = ler(`emotes:${canal}`, []);
+    const emotesLigados = () => ler("emotesLig", true);
     const pausado = () => ler(`pausado:${canal}`, false);
     const idiomaEscolhido = () => ler(`idioma:${canal}`, "auto");
 
@@ -283,6 +290,7 @@
           <button type="button" data-a="pausa"></button>
           <button type="button" data-a="agora">✉ Enviar agora</button>
           <button type="button" data-a="idioma" title="Idioma das frases (Auto escolhe pelo chat)"></button>
+          <button type="button" data-a="emotes" title="Mandar junto um emote do chat deste canal"></button>
           <button type="button" data-a="avisos" hidden>🔔 Avisos</button>
           <button type="button" data-a="desativar" title="Parar de mandar mensagens neste canal">Desativar aqui</button>
         </div>
@@ -330,6 +338,8 @@
       $('[data-a="pausa"]').textContent = pausado() ? "▶ Retomar" : "⏸ Pausar";
       const id = idiomaEscolhido();
       $('[data-a="idioma"]').textContent = id === "auto" ? "🌐 Auto" : id === "es" ? "🌐 ES" : "🌐 PT";
+      const nEmotes = fonteEmotes().length;
+      $('[data-a="emotes"]').textContent = !emotesLigados() ? "😶 Sem emote" : nEmotes ? `😃 Emotes (${nEmotes})` : "😃 Emotes";
       $('[data-al="antiga"]').hidden = !(copiaAntiga || painelAntigoNaTela());
       const fora = $('[data-al="fora"]');
       if (copiaFora) { fora.hidden = false; fora.textContent = `⚠ Uma cópia ANTIGA do auto-chat mandou "${copiaFora}" de OUTRA aba, navegador ou aparelho (não foi esta). No Chrome: Ctrl+Shift+A, digite "kick" e feche as outras abas da Kick.`; }
@@ -350,6 +360,27 @@
     };
 
     // ---------- escolher e enviar a frase ----------
+    // lê os emotes que aparecem no chat deste canal (pela imagem: id em files.kick.com/emotes/ID e o nome no alt)
+    const coletarEmotes = () => {
+      const cont = containerDoChat(); if (!cont) return;
+      let mudou = false;
+      for (const img of cont.querySelectorAll("img")) {
+        const src = img.getAttribute("src") || img.getAttribute("data-src") || "";
+        const id = (img.getAttribute("data-emote-id") || (src.match(RE_EMOTE_ID) || [])[1] || "").trim();
+        const nome = (img.getAttribute("data-emote-name") || img.getAttribute("alt") || img.getAttribute("title") || "").trim();
+        if (/^\d+$/.test(id) && /^[A-Za-z0-9_]{2,40}$/.test(nome)) {
+          const e = id + ":" + nome;
+          if (!emotesVistos.includes(e)) { emotesVistos.push(e); mudou = true; }
+        }
+      }
+      if (mudou) { while (emotesVistos.length > 40) emotesVistos.shift(); gravar(`emotes:${canal}`, emotesVistos); }
+    };
+    const fonteEmotes = () => EMOTES_MANUAIS.length ? EMOTES_MANUAIS : emotesVistos;
+    const umEmote = () => {
+      const f = fonteEmotes(); if (!f.length) return "";
+      const [id, nome] = String(f[Math.floor(Math.random() * f.length)]).split(":");
+      return (/^\d+$/.test(id) && nome) ? ` [emote:${id}:${nome}]` : "";
+    };
     const escolherFrase = (clima, idioma) => {
       const lista = FRASES[idioma][clima] || FRASES[idioma].neutro;
       const livres = lista.filter(f => !recentes.includes(f));     // não repete as últimas 6
@@ -357,8 +388,10 @@
       const f = pool[Math.floor(Math.random() * pool.length)];
       recentes.push(f); while (recentes.length > 6) recentes.shift();
       gravar(`recentes:${canal}`, recentes);
-      const emoji = Math.random() < 0.3 ? " " + EMOJIS[clima][Math.floor(Math.random() * EMOJIS[clima].length)] : "";
-      return { frase: f, msg: f + emoji };
+      let extra = "";
+      if (emotesLigados() && fonteEmotes().length && Math.random() < 0.55) extra = umEmote();   // emote do canal
+      else if (Math.random() < 0.3) extra = " " + EMOJIS[clima][Math.floor(Math.random() * EMOJIS[clima].length)];
+      return { frase: f, msg: f + extra };
     };
     const esperar = (ms) => new Promise(r => setTimeout(r, ms));
     const ultimoOk = () => Math.max(ler(`ultimo:${canal}`, 0), aoVivoDesde);
@@ -533,6 +566,7 @@
       if (a === "pausa") { gravar(`pausado:${canal}`, !pausado()); log(pausado() ? "Pausado: não vai mandar nada até você retomar." : "Retomado."); if (!pausado()) agendar(500); }
       if (a === "agora") enviar().then(depoisDeEnviar);
       if (a === "idioma") { const ordem = ["auto", "pt", "es"]; gravar(`idioma:${canal}`, ordem[(ordem.indexOf(idiomaEscolhido()) + 1) % 3]); }
+      if (a === "emotes") { gravar("emotesLig", !emotesLigados()); log(emotesLigados() ? "Emotes do chat: ligados" : "Emotes do chat: desligados"); }
       if (a === "avisos" && window.Notification) Notification.requestPermission().then(atualizarPainel);
       if (a === "desativar") { gravar("canais", canaisAtivos().filter(c => c !== canal)); rotear(true); return; }
       if (a === "fecharDesc") { $('[data-al="descartada"]').hidden = true; return; }
@@ -573,7 +607,7 @@
         if (!enviando && agora - proximo > tempo(90000, "atrasoMs")) agendar(0);   // o relógio do envio se perdeu
       }
     }, tempo(60000, "minutoMs"));
-    setTimeout(() => { if (parado) return; vigiarFora(); vigia = setInterval(vigiarFora, 5000); }, tempo(15000, "vigiaMs"));
+    setTimeout(() => { if (parado) return; vigiarFora(); coletarEmotes(); vigia = setInterval(() => { vigiarFora(); coletarEmotes(); }, 5000); }, tempo(15000, "vigiaMs"));
     log("Carregando…");
     atualizarPainel();
     agendar(tempo(8000, "inicioMs"));                // espera a página montar (faixa OFFLINE etc.)
