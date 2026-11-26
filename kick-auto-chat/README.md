@@ -11,6 +11,8 @@ no ritmo da regra de pontos de cada canal. Funciona no navegador do computador, 
 | outros canais | 1 ponto a cada 15 min (padrão) | 8–10 min | mais de 15 min sem escrever |
 
 O intervalo fica sempre abaixo da janela, com folga para o modo lento do chat e tentativas que falham.
+Trava anti-spam: duas mensagens **nunca** saem a menos de 1 minuto uma da outra (bem abaixo dos 6–10 min normais) —
+é só um limite de segurança para nenhum erro virar enxurrada; o botão "✉ Enviar agora" é manual e não passa por ela.
 Para mudar a regra de um canal, edite `REGRAS` no começo do script.
 
 ## Como ele garante os pontos
@@ -61,13 +63,15 @@ Em português ou espanhol conforme o chat (rindo, triste/respeito ou normal), se
 e às vezes com um emoji no fim. Para trocar as palavras, edite `FRASES` no começo do script.
 
 ## Emotes
-Para as mensagens não ficarem só em palavras, o script **aprende sozinho os emotes que aparecem no chat**
-de cada canal (globais e do canal — que você também tem) e manda um junto com a frase de vez em quando.
-Nunca inventa código: só usa emote que ele viu no chat. O botão **😃 Emotes (N)** no painel mostra quantos
-já aprendeu e liga/desliga esse envio (😶 Sem emote).
+Os emotes vêm **desligados por padrão**, porque mandar emote junto pela automação às vezes trava o envio na Kick
+(a Kick abre um menuzinho de emote que "engole" o Enter e a mensagem fica presa no campo). Só as palavras já
+funcionam de forma confiável.
 
-Quer usar emotes **específicos** (ex.: os seus de inscrito)? Edite `EMOTES_MANUAIS` no começo do script, no
-formato `"id:nome"` — o `id` é o número que aparece no endereço da imagem do emote (`files.kick.com/emotes/ID/...`).
+Se quiser testar emotes, clique em **😶 Sem emote** no painel para ligar (vira **😃 Emotes (N)**): o script aprende
+sozinho os emotes que aparecem no chat do canal e manda um junto com a frase. Se um envio com emote falhar, a
+próxima mensagem vai **sem** emote sozinho, para nunca travar o envio. Para emotes específicos (ex.: de inscrito),
+edite `EMOTES_MANUAIS` no começo do script no formato `"id:nome"`.
+
 
 ## Para não perder pontos
 - **Chrome "dormindo" a aba (Economia de memória):** o Chrome descarta abas paradas (janela minimizada, aba

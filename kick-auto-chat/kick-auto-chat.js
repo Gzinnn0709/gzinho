@@ -4,7 +4,7 @@
 // No painel: pausar, mandar agora, idioma das frases, minimizar e desativar o canal.
 (() => {
   "use strict";
-  const VERSAO = "3.7";
+  const VERSAO = "3.9";
   const T = window.__autoChatTeste || {};            // só para os testes automáticos (acelera os tempos)
   const tempo = (padrao, chave) => (T[chave] ?? padrao);
 
@@ -265,7 +265,7 @@
     const minParada = pulsoAnterior ? Math.round((Date.now() - pulsoAnterior) / 60000) : 0;
     const recentes = ler(`recentes:${canal}`, []);
     let emotesVistos = ler(`emotes:${canal}`, []);
-    const emotesLigados = () => ler("emotesLig", true);
+    const emotesLigados = () => ler("emotesLig", false);   // desligado por padrão: o emote inline pode travar o envio na Kick
     const pausado = () => ler(`pausado:${canal}`, false);
     const idiomaEscolhido = () => ler(`idioma:${canal}`, "auto");
 
@@ -378,20 +378,30 @@
     const fonteEmotes = () => EMOTES_MANUAIS.length ? EMOTES_MANUAIS : emotesVistos;
     const umEmote = () => {
       const f = fonteEmotes(); if (!f.length) return "";
-      const [id, nome] = String(f[Math.floor(Math.random() * f.length)]).split(":");
-      return (/^\d+$/.test(id) && nome) ? ` [emote:${id}:${nome}]` : "";
+      const ult = ler(`ultimoEmote:${canal}`, "");
+      let opc = f.filter(e => e !== ult); if (!opc.length) opc = f;   // não repete o emote anterior
+      const esc = String(opc[Math.floor(Math.random() * opc.length)]);
+      const [id, nome] = esc.split(":");
+      if (!(/^\d+$/.test(id) && nome)) return "";
+      gravar(`ultimoEmote:${canal}`, esc);
+      return ` [emote:${id}:${nome}]`;
     };
+    let semEmoteAgora = false;   // depois de uma falha, a próxima vai sem emote (o emote pode estar travando o envio)
     const escolherFrase = (clima, idioma) => {
       const lista = FRASES[idioma][clima] || FRASES[idioma].neutro;
-      const livres = lista.filter(f => !recentes.includes(f));     // não repete as últimas 6
-      const pool = livres.length ? livres : lista;
-      const f = pool[Math.floor(Math.random() * pool.length)];
-      recentes.push(f); while (recentes.length > 6) recentes.shift();
+      const ultima = ler(`ultimaFrase:${canal}`, "");
+      // NUNCA repete a última (a Kick bloqueia mensagem igual seguida) e evita as últimas ~12 para variar bastante
+      let livres = lista.filter(f => f !== ultima && !recentes.includes(f));
+      if (!livres.length) livres = lista.filter(f => f !== ultima);
+      if (!livres.length) livres = lista;
+      const f = livres[Math.floor(Math.random() * livres.length)];
+      recentes.push(f); while (recentes.length > Math.min(12, Math.max(1, lista.length - 1))) recentes.shift();
       gravar(`recentes:${canal}`, recentes);
+      gravar(`ultimaFrase:${canal}`, f);
       let extra = "";
-      if (emotesLigados() && fonteEmotes().length && Math.random() < 0.55) extra = umEmote();   // emote do canal
+      if (!semEmoteAgora && emotesLigados() && fonteEmotes().length && Math.random() < 0.55) extra = umEmote();   // emote do canal (sem repetir o anterior)
       else if (Math.random() < 0.3) extra = " " + EMOJIS[clima][Math.floor(Math.random() * EMOJIS[clima].length)];
-      return { frase: f, msg: f + extra };
+      return { frase: f, msg: f + extra, teveEmote: /\[emote:/.test(extra) };
     };
     const esperar = (ms) => new Promise(r => setTimeout(r, ms));
     const ultimoOk = () => Math.max(ler(`ultimo:${canal}`, 0), aoVivoDesde);
@@ -400,7 +410,13 @@
     const ehNosso = (t) => !!t && (t === ultimoTexto || FRASES_ANTIGAS.has(t));
     const limparCampo = () => {
       const inp = acharInput(); if (!inp) return;
-      inp.focus(); document.execCommand("selectAll", false, null); document.execCommand("delete", false, null);
+      inp.focus();
+      try { document.execCommand("selectAll", false, null); document.execCommand("delete", false, null); } catch (e) {}
+      if ((inp.textContent || "").trim() || inp.querySelector("img, [data-emote-id], .emote")) {   // sobrou (ex.: chip de emote): limpa na marra
+        try { inp.innerHTML = ""; } catch (e) {}
+        try { inp.textContent = ""; } catch (e) {}
+        try { inp.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "deleteContentBackward" })); } catch (e) {}
+      }
     };
     // Recarrega a página quando o chat trava (campo sumiu ou mensagens seguidas não aparecem). No máximo 1 vez a cada 15 min.
     const recarregar = (motivo) => {
@@ -416,6 +432,7 @@
     const deuCerto = (msg, idioma, clima, conferida) => {
       somarHoje(canal, "msgs"); gravar(`ultimo:${canal}`, Date.now());
       falhasSeguidas = 0;
+      semEmoteAgora = false;   // enviou: pode voltar a usar emote
       log(`${conferida ? "\u2713 Apareceu no chat" : "Enviado"} [${idioma} \u00b7 ${clima}]: "${msg}"`);
       atualizarPainel();
     };
@@ -443,9 +460,16 @@
     // Escreve a frase e aperta Enter. O sinal CONFIÁVEL de que a Kick aceitou é o CAMPO ESVAZIAR.
     // A conferência no chat é só para o rótulo "\u2713 Apareceu" — nunca trata "não achei no chat" como falha:
     // em live cheia o chat voa e a frase some antes da conferência, e tratar como falha gerava spam e recarga à toa.
-    const enviar = async () => {
+    // trava anti-spam: duas mensagens ENVIADAS nunca saem a menos de PISO uma da outra (bem abaixo dos 6–10 min normais;
+    // é só um limite de segurança para nenhum caso de erro virar enxurrada). O botão "Enviar agora" não passa por aqui.
+    const PISO_MS = tempo(60000, "pisoMs");
+    const enviar = async (manual) => {
       if (parado || enviando) return { r: "ocupado" };
       if (slugAtual() !== canal) { log("Você saiu deste canal: não mandei nada."); return { r: "fora" }; }   // trocou de canal na mesma aba
+      if (!manual) {
+        const desde = Date.now() - ler(`ultimo:${canal}`, 0);
+        if (desde < PISO_MS) return { r: "cedo", espera: PISO_MS - desde + 1000 };   // mandou há pouco: segura
+      }
       const input = acharInput();
       if (!input) {
         semCampo++; log("Não achei o campo do chat.");
@@ -466,7 +490,7 @@
         let clima = "neutro", idioma = idiomaEscolhido();
         try { clima = climaDoChat(txt); } catch (e) {}
         if (idioma === "auto") { try { idioma = idiomaDoChat(txt); } catch (e) { idioma = "pt"; } }
-        const { frase, msg } = escolherFrase(clima, idioma);
+        const { frase, msg, teveEmote } = escolherFrase(clima, idioma);
         ultimoTexto = msg;
         const antes = contarNoChat(frase);
         const campo = acharInput() || input;
@@ -474,8 +498,9 @@
         document.execCommand("selectAll", false, null);
         document.execCommand("insertText", false, msg);
         const vazio = () => !(acharInput()?.textContent || "").trim();
-        const apertarEnter = el => ["keydown", "keypress", "keyup"].forEach(t =>
-          el.dispatchEvent(new KeyboardEvent(t, { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true, cancelable: true })));
+        const tecla = (el, key, code, keyCode) => ["keydown", "keypress", "keyup"].forEach(t =>
+          el.dispatchEvent(new KeyboardEvent(t, { key, code, keyCode, which: keyCode, bubbles: true, cancelable: true })));
+        const apertarEnter = el => { tecla(el, "Escape", "Escape", 27); tecla(el, "Enter", "Enter", 13); };   // Esc fecha o menu de emote que engole o Enter
         const tentativas = [
           () => apertarEnter(acharInput() || campo),
           () => { const b = acharBotao(); if (b) b.click(); },
@@ -489,9 +514,10 @@
         }
         if (parado) return { r: "parado" };
         if (!vazio()) {
-          limparCampo();                                    // não deixa a frase parada no campo
+          limparCampo();                                    // não deixa a frase parada no campo (tira até o chip de emote)
           const bloq = infoBloqueio();
           if (bloq) return { r: "bloqueio", espera: tratarBloqueio(bloq) };
+          if (teveEmote) semEmoteAgora = true;              // tinha emote: a próxima tenta sem emote (o emote pode estar travando)
           return { r: "falhou", espera: deuErrado("a Kick não aceitou a mensagem (modo lento, chat restrito ou sem conexão?)") };
         }
         // campo esvaziou = a Kick aceitou. Confere no chat só para o rótulo (bônus); ausência NÃO é falha.
@@ -564,7 +590,7 @@
       e.stopPropagation();
       if (a === "min") { const m = !painel.classList.contains("min"); painel.classList.toggle("min", m); gravar("minimizado", m); }
       if (a === "pausa") { gravar(`pausado:${canal}`, !pausado()); log(pausado() ? "Pausado: não vai mandar nada até você retomar." : "Retomado."); if (!pausado()) agendar(500); }
-      if (a === "agora") enviar().then(depoisDeEnviar);
+      if (a === "agora") enviar(true).then(depoisDeEnviar);
       if (a === "idioma") { const ordem = ["auto", "pt", "es"]; gravar(`idioma:${canal}`, ordem[(ordem.indexOf(idiomaEscolhido()) + 1) % 3]); }
       if (a === "emotes") { gravar("emotesLig", !emotesLigados()); log(emotesLigados() ? "Emotes do chat: ligados" : "Emotes do chat: desligados"); }
       if (a === "avisos" && window.Notification) Notification.requestPermission().then(atualizarPainel);
